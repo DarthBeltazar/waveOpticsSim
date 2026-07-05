@@ -27,6 +27,8 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
+import java.util.stream.IntStream;
+
 public class SimulationFX extends Application {
 
     private final ElementManager elementManager = new ElementManager();
@@ -422,7 +424,6 @@ public class SimulationFX extends Application {
                 double beamWidth = Double.parseDouble(beamWidthField.getText());
                 boolean pointSource = "Point source".equals(sourceTypeCombo.getValue());
 
-                // Устанавливаем anti-aliasing
                 AngularSpectrumPropagator.setAntiAliasingEnabled(antiAliasingCheck.isSelected());
 
                 double k = 2.0 * Math.PI / lambda;
@@ -430,22 +431,22 @@ public class SimulationFX extends Application {
                 double half = N / 2.0;
 
                 updateMessage("Creating initial field...");
-                for (int i = 0; i < N; i++) {
+                IntStream.range(0, N).parallel().forEach(i -> {
                     double x = (i - half) * dx;
                     for (int j = 0; j < N; j++) {
                         double y = (j - half) * dx;
                         if (pointSource) {
                             double w0 = 1e-6;
-                            double r2 = x * x + y * y;
-                            double amp = Math.exp(-r2 / (w0 * w0));
+                            double r2 = x*x + y*y;
+                            double amp = Math.exp(-r2/(w0*w0));
                             double r = Math.sqrt(r2);
-                            field.setValue(i, j, amp * Math.cos(k * r), amp * Math.sin(k * r));
+                            field.setValue(i, j, amp * Math.cos(k*r), amp * Math.sin(k*r));
                         } else {
-                            double r2 = x * x + y * y;
-                            field.setValue(i, j, Math.exp(-r2 / (beamWidth * beamWidth)), 0.0);
+                            double r2 = x*x + y*y;
+                            field.setValue(i, j, Math.exp(-r2/(beamWidth*beamWidth)), 0.0);
                         }
                     }
-                }
+                });
 
                 updateMessage("Propagating through elements...");
                 engine.run(field, elementManager.getElements());

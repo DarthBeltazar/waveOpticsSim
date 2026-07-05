@@ -1,6 +1,7 @@
 package com.optics.simulation;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.IntStream;
 
 public class AngularSpectrumPropagator implements Propagator {
     private static final ConcurrentHashMap<String, double[][]> transferCache = new ConcurrentHashMap<>();
@@ -38,19 +39,7 @@ public class AngularSpectrumPropagator implements Propagator {
         FFT2D.fft2(data);
 
         // Multiply by H (interleaved)
-        for (int i = 0; i < n; i++) {
-            double[] rowData = data[i];
-            double[] rowH = H[i];
-            for (int j = 0; j < n; j++) {
-                int idx = 2 * j;
-                double r = rowData[idx];
-                double im = rowData[idx + 1];
-                double hr = rowH[idx];
-                double hi = rowH[idx + 1];
-                rowData[idx] = r * hr - im * hi;
-                rowData[idx + 1] = r * hi + im * hr;
-            }
-        }
+        multiplyByTransferFunction(data, H);
 
         // Inverse FFT
         FFT2D.ifft2(data);
@@ -81,25 +70,10 @@ public class AngularSpectrumPropagator implements Propagator {
         // Straight FFT on scaled massive
         FFT2D.fft2(paddedData);
 
-        // Умножение на передаточную функцию
-        for (int i = 0; i < paddedN; i++) {
-            double[] rowData = paddedData[i];
-            double[] rowH = H[i];
-            for (int j = 0; j < paddedN; j++) {
-                int idx = 2 * j;
-                double r = rowData[idx];
-                double im = rowData[idx + 1];
-                double hr = rowH[idx];
-                double hi = rowH[idx + 1];
-                rowData[idx] = r * hr - im * hi;
-                rowData[idx + 1] = r * hi + im * hr;
-            }
-        }
+        multiplyByTransferFunction(paddedData, H);
 
-        // Обратное БПФ
         FFT2D.ifft2(paddedData);
 
-        // Копируем центральную часть обратно в исходное поле
         for (int i = 0; i < n; i++) {
             System.arraycopy(paddedData[i + offset], 2 * offset, originalData[i], 0, 2 * n);
         }
@@ -130,5 +104,22 @@ public class AngularSpectrumPropagator implements Propagator {
             }
         }
         return H;
+    }
+
+    private void multiplyByTransferFunction(double[][] data, double[][] H) {
+        int n = data.length;
+        IntStream.range(0, n).parallel().forEach(i -> {
+            double[] rowData = data[i];
+            double[] rowH = H[i];
+            for (int j = 0; j < n; j++) {
+                int idx = 2 * j;
+                double r = rowData[idx];
+                double im = rowData[idx + 1];
+                double hr = rowH[idx];
+                double hi = rowH[idx + 1];
+                rowData[idx] = r * hr - im * hi;
+                rowData[idx + 1] = r * hi + im * hr;
+            }
+        });
     }
 }

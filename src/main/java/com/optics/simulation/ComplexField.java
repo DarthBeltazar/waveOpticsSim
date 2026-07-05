@@ -2,6 +2,7 @@ package com.optics.simulation;
 
 import java.io.IOException;
 import java.util.function.DoubleBinaryOperator;
+import java.util.stream.IntStream;
 
 /**
  * Complex field stored in interleaved format: data[i][2*j] = real, data[i][2*j+1] = imag.
@@ -78,7 +79,7 @@ public class ComplexField {
      * maskData[i][2*j] = Re(mask), maskData[i][2*j+1] = Im(mask).
      */
     public void applyPrecomputedMask(double[][] maskData) {
-        for (int i = 0; i < n; i++) {
+        IntStream.range(0, n).parallel().forEach(i -> {
             double[] row = data[i];
             double[] maskRow = maskData[i];
             for (int j = 0; j < n; j++) {
@@ -90,7 +91,7 @@ public class ComplexField {
                 row[idx] = r * mr - im * mi;
                 row[idx + 1] = r * mi + im * mr;
             }
-        }
+        });
     }
 
     /**
