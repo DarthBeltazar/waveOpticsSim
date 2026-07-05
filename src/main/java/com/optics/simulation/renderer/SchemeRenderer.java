@@ -194,7 +194,7 @@ public class SchemeRenderer {
             startAngles = new double[]{-0.6, -0.3, 0.0, 0.3, 0.6};
             startHeights = new double[numRays];
         } else {
-            startHeights = new double[]{-0.0015, -0.00075, 0.0, 0.00075, 0.0015};
+            startHeights = new double[]{-0.01, -0.005, 0.0, 0.005, 0.01};
             startAngles = new double[numRays];
         }
 
@@ -206,8 +206,7 @@ public class SchemeRenderer {
 
             points.add(new double[]{0.0, currentY});
 
-            for (int i = 0; i < placements.size(); i++) {
-                Placement p = placements.get(i);
+            for (Placement p : placements) {
                 if (p.elem == null) continue;
                 double elemX = p.x;
                 double dx = elemX - currentX;
@@ -216,19 +215,25 @@ public class SchemeRenderer {
                 points.add(new double[]{currentX, currentY});
 
                 // Apply element transformation
-                if (p.elem instanceof LensElement) {
-                    double f = ((LensElement) p.elem).getFocalLength();
-                    if (f != 0) currentSlope = currentSlope - currentY / f;
-                } else if (p.elem instanceof MirrorElement m) {
-                    if (m.isFlat()) {
-                        currentSlope = -currentSlope;
-                    } else {
-                        double f = m.getFocalLength();
-                        currentSlope = -currentSlope - currentY / f;
+                switch (p.elem) {
+                    case LensElement lensElement -> {
+                        double f = lensElement.getFocalLength();
+                        if (f != 0) currentSlope = currentSlope - currentY / f;
                     }
-                } else if (p.elem instanceof GratingElement) {
-                    double amp = ((GratingElement) p.elem).getAmplitude();
-                    currentSlope += amp * 0.01 * (currentY > 0 ? 1 : -1);
+                    case MirrorElement m -> {
+                        if (m.isFlat()) {
+                            currentSlope = -currentSlope;
+                        } else {
+                            double f = m.getFocalLength();
+                            currentSlope = -currentSlope - currentY / f;
+                        }
+                    }
+                    case GratingElement gratingElement -> {
+                        double amp = gratingElement.getAmplitude();
+                        currentSlope += amp * 0.01 * (currentY > 0 ? 1 : -1);
+                    }
+                    default -> {
+                    }
                 }
                 // SlitElement does not change ray direction
                 // FreeSpaceElement: no change
