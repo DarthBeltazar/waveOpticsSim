@@ -43,7 +43,7 @@ public class SchemeRenderer {
         java.util.function.DoubleUnaryOperator toPixelX = (x) -> leftMargin + x * scaleX;
 
         // Draw axis
-        gc.setStroke(Color.BLACK);
+        gc.setStroke(Color.WHITE);
         gc.setLineWidth(1.5);
         gc.strokeLine(leftMargin, axisY, canvasW - rightMargin, axisY);
         gc.strokeLine(canvasW - rightMargin, axisY, canvasW - rightMargin - 10, axisY - 5);
@@ -54,7 +54,7 @@ public class SchemeRenderer {
         double sourceX = toPixelX.applyAsDouble(0);
         gc.setFill(Color.BLUE);
         gc.fillOval(sourceX - 6, axisY - 6, 12, 12);
-        gc.setFill(Color.BLACK);
+        gc.setFill(Color.WHITE);
         gc.setFont(Font.font(11));
         gc.fillText(pointSource ? "Point source" : "Collimated source", sourceX - 30, axisY - 14);
 
@@ -126,7 +126,7 @@ public class SchemeRenderer {
         gc.setLineWidth(2.5);
         gc.strokeArc(x - 18, y - halfHeight, 36, halfHeight * 2, -90, 180, javafx.scene.shape.ArcType.OPEN);
         gc.strokeArc(x - 18, y - halfHeight, 36, halfHeight * 2, 90, 180, javafx.scene.shape.ArcType.OPEN);
-        gc.setFill(Color.BLACK);
+        gc.setFill(Color.WHITE);
         gc.setFont(Font.font(11));
         gc.fillText("Lens f=" + String.format("%.3f", f) + " m", x - 30, y - halfHeight - 8);
         if (f > 0) {
@@ -163,7 +163,7 @@ public class SchemeRenderer {
             double xPos = x - 25 + i * spacing;
             gc.strokeLine(xPos, y - halfHeight, xPos, y + halfHeight);
         }
-        gc.setFill(Color.BLACK);
+        gc.setFill(Color.WHITE);
         gc.setFont(Font.font(10));
         String label = "Grating " + (rect ? "rect" : "sin") + " p=" + String.format("%.4f", period);
         gc.fillText(label, x - 35, y - halfHeight - 8);
@@ -176,7 +176,7 @@ public class SchemeRenderer {
         gc.setLineWidth(2);
         gc.strokeLine(x - halfWidthPx, y - halfHeight, x - halfWidthPx, y + halfHeight);
         gc.strokeLine(x + halfWidthPx, y - halfHeight, x + halfWidthPx, y + halfHeight);
-        gc.setFill(Color.BLACK);
+        gc.setFill(Color.WHITE);
         gc.setFont(Font.font(11));
         gc.fillText("Slit w=" + String.format("%.4f", width) + " m", x - 30, y - halfHeight - 8);
     }

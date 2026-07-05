@@ -102,7 +102,6 @@ public class SimulationFX extends Application {
         // Fixed images at bottom
         VBox imagesBox = new VBox(10);
         imagesBox.setPadding(new Insets(10));
-        imagesBox.setStyle("-fx-background-color: #f5f5f5; -fx-border-color: lightgray; -fx-border-width: 1 0 0 0;");
         imagesBox.setMaxHeight(400);
         imagesBox.setFillWidth(true);
 
@@ -136,6 +135,7 @@ public class SimulationFX extends Application {
         splitPane.setDividerPositions(0.35);
 
         Scene scene = new Scene(splitPane, 1400, 1000);
+        scene.getStylesheets().add(getClass().getResource("/dark-theme.css").toExternalForm());
         primaryStage.setScene(scene);
         primaryStage.show();
 
