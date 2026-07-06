@@ -24,6 +24,17 @@ public class ComplexField {
         this.data = new double[n][2 * n];
     }
 
+    /**
+     * Copy constructor. Creates a deep copy of the given field.
+     */
+    public ComplexField(ComplexField other) {
+        this(other.getN(), other.getDx(), other.getLambda());
+        double[][] srcData = other.getData();
+        for (int i = 0; i < n; i++) {
+            System.arraycopy(srcData[i], 0, data[i], 0, 2 * n);
+        }
+    }
+
     public int getN() {
         return n;
     }

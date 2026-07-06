@@ -37,3 +37,7 @@ jar {
     }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
+
+test {
+    useJUnitPlatform()
+}

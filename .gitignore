@@ -5,6 +5,7 @@ build/
 !**/src/test/**/build/
 .kotlin
 final_**.png
+benchmark_results.csv
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
