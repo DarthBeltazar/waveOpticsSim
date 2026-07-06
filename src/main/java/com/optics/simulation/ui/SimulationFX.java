@@ -11,6 +11,7 @@ import com.optics.simulation.model.*;
 import com.optics.simulation.renderer.SchemeRenderer;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
@@ -23,6 +24,9 @@ import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
 import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.Dragboard;
+import javafx.scene.input.TransferMode;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
@@ -389,14 +393,22 @@ public class SimulationFX extends Application {
 
     private VBox createElementList() {
         elementListView = new ListView<>(elementManager.getElements());
-        elementListView.setCellFactory(lv -> new ListCell<>() {
-            @Override
-            protected void updateItem(OpticalElement item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.getDescription());
+        elementListView.setCellFactory(lv -> new DragDropListCell());
+        elementListView.setPrefHeight(150);
+
+        elementListView.setOnMouseClicked(event -> {
+            if (event.getClickCount() == 2) {
+                OpticalElement selected = elementListView.getSelectionModel().getSelectedItem();
+                if (selected != null) {
+                    elementManager.remove(selected);
+                    if (editingIndex >= 0) {
+                        editingIndex = -1;
+                        addButton.setText("Add");
+                    }
+                }
             }
         });
-        elementListView.setPrefHeight(150);
+
         return new VBox(5, new Label("Element sequence:"), elementListView);
     }
 
@@ -678,5 +690,77 @@ public class SimulationFX extends Application {
         intensityChart.getYAxis().setAutoRanging(true);
         phaseChart.getXAxis().setAutoRanging(true);
         phaseChart.getYAxis().setAutoRanging(true);
+    }
+
+    /**
+     * Custom ListCell that supports drag-and-drop reordering.
+     */
+    private static class DragDropListCell extends ListCell<OpticalElement> {
+
+        @Override
+        protected void updateItem(OpticalElement item, boolean empty) {
+            super.updateItem(item, empty);
+            if (empty || item == null) {
+                setText(null);
+                setGraphic(null);
+            } else {
+                setText(item.getDescription());
+            }
+        }
+
+        {
+            setOnDragDetected(event -> {
+                if (getItem() == null) return;
+                Dragboard db = startDragAndDrop(TransferMode.MOVE);
+                ClipboardContent content = new ClipboardContent();
+                content.putString("move");
+                db.setContent(content);
+                event.consume();
+            });
+
+            setOnDragOver(event -> {
+                if (event.getGestureSource() != this && event.getDragboard().hasString()) {
+                    event.acceptTransferModes(TransferMode.MOVE);
+                }
+                event.consume();
+            });
+
+            setOnDragEntered(event -> {
+                setStyle("-fx-background-color: #555555;");
+            });
+
+            setOnDragExited(event -> {
+                setStyle("");
+            });
+
+            setOnDragDropped(event -> {
+                Dragboard db = event.getDragboard();
+                boolean success = false;
+                if (db.hasString()) {
+                    ListView<OpticalElement> listView = getListView();
+                    if (listView != null) {
+                        OpticalElement sourceItem = listView.getSelectionModel().getSelectedItem();
+                        if (sourceItem != null) {
+                            int sourceIndex = listView.getItems().indexOf(sourceItem);
+                            int targetIndex = getIndex();
+                            if (sourceIndex >= 0 && targetIndex >= 0 && sourceIndex != targetIndex) {
+                                ObservableList<OpticalElement> items = listView.getItems();
+                                OpticalElement moved = items.remove(sourceIndex);
+                                if (targetIndex > sourceIndex) targetIndex--;
+                                items.add(targetIndex, moved);
+                                success = true;
+                            }
+                        }
+                    }
+                }
+                event.setDropCompleted(success);
+                event.consume();
+            });
+
+            setOnDragDone(event -> {
+                setStyle("");
+                event.consume();
+            });
+        }
     }
 }
