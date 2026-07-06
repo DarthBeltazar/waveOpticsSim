@@ -30,7 +30,7 @@ jobs:
           - os: macos-latest
             platform: mac
             fx_suffix: osx
-            fx_arch: x64   # для Intel Mac; для Apple Silicon используйте aarch64
+            fx_arch: x64   # для Intel Mac; для Apple Silicon поменяйте на aarch64
             jpackage_type: app-image
             artifact_name: OpticsSimulation-macos.zip
 
@@ -67,15 +67,41 @@ jobs:
           path: javafx-sdk-${{ env.FX_VERSION }}
           key: javafx-${{ env.FX_VERSION }}-${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}
 
-      - name: Download JavaFX SDK (if not cached)
-        if: steps.cache-javafx.outputs.cache-hit != 'true'
+      - name: Download and extract JavaFX SDK (Windows)
+        if: runner.os == 'Windows' && steps.cache-javafx.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $url = "https://download2.gluonhq.com/openjfx/$env:FX_VERSION/openjfx-$env:FX_VERSION_${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}_bin-sdk.zip"
+          Write-Host "Downloading $url"
+          Invoke-WebRequest -Uri $url -OutFile javafx-sdk.zip
+          if (-not (Test-Path javafx-sdk.zip) -or (Get-Item javafx-sdk.zip).Length -eq 0) {
+            Write-Error "Download failed or empty file"
+            exit 1
+          }
+          Expand-Archive -Path javafx-sdk.zip -DestinationPath .
+          Remove-Item javafx-sdk.zip
+          if (-not (Test-Path "javafx-sdk-$env:FX_VERSION")) {
+            Write-Error "JavaFX SDK not extracted correctly"
+            exit 1
+          }
+
+      - name: Download and extract JavaFX SDK (Unix)
+        if: runner.os != 'Windows' && steps.cache-javafx.outputs.cache-hit != 'true'
         shell: bash
         run: |
           FX_URL="https://download2.gluonhq.com/openjfx/${{ env.FX_VERSION }}/openjfx-${{ env.FX_VERSION }}_${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}_bin-sdk.zip"
           echo "Downloading $FX_URL"
           curl -L -o javafx-sdk.zip "$FX_URL"
-          unzip javafx-sdk.zip -d .
+          if [ ! -s javafx-sdk.zip ]; then
+            echo "Error: downloaded file is empty"
+            exit 1
+          fi
+          unzip -q javafx-sdk.zip -d .
           rm javafx-sdk.zip
+          if [ ! -d "javafx-sdk-${{ env.FX_VERSION }}" ]; then
+            echo "Error: JavaFX SDK not extracted properly"
+            exit 1
+          fi
 
       - name: Grant execute permission for gradlew (Linux/macOS)
         if: runner.os != 'Windows'
@@ -105,6 +131,28 @@ jobs:
             --name OpticsSimulation \
             --type ${{ matrix.jpackage_type }} \
             --dest ./
+
+      - name: List files after jpackage (diagnostic)
+        shell: bash
+        run: |
+          echo "Contents of current directory:"
+          ls -la
+          echo "Searching for OpticsSimulation* folders:"
+          find . -maxdepth 1 -type d -name "OpticsSimulation*" || true
+
+      - name: Rename app folder if needed (macOS/Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          if [ -d "OpticsSimulation" ]; then
+            echo "Folder OpticsSimulation exists."
+          elif [ -d "OpticsSimulation.app" ]; then
+            echo "Found OpticsSimulation.app, renaming to OpticsSimulation"
+            mv OpticsSimulation.app OpticsSimulation
+          else
+            echo "Error: Neither OpticsSimulation nor OpticsSimulation.app found."
+            exit 1
+          fi
 
       - name: Zip portable app (Windows)
         if: runner.os == 'Windows'
