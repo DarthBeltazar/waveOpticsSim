@@ -103,7 +103,7 @@ public class Benchmark {
         }
 
         // Save to CSV
-        try (PrintWriter pw = new PrintWriter(new FileWriter("benchmark_results.csv"))) {
+        try (PrintWriter pw = new PrintWriter(new FileWriter("benchmarkResults/benchmark_results.csv"))) {
             pw.println("Stage,Average (s),StdDev (s),Percent,ms,ms,ms");
             pw.printf("Total,%.4f,%.4f,100.0%n", avgTotal, stdTotal);
             pw.printf("Field creation,%.4f,%.4f,%.1f%n", avgStage[0], stdStage[0], avgStage[0]/avgTotal*100);

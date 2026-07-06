@@ -2,6 +2,7 @@ package com.optics.simulation.ui;
 
 import com.optics.simulation.AngularSpectrumPropagator;
 import com.optics.simulation.ComplexField;
+import com.optics.simulation.analysis.BeamAnalyzer;
 import com.optics.simulation.config.SimulationConfig;
 import com.optics.simulation.util.Colormap;
 import com.optics.simulation.util.ImageUtils;
@@ -30,6 +31,7 @@ import javafx.scene.input.Dragboard;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 import java.io.File;
@@ -120,7 +122,11 @@ public class SimulationFX extends Application {
         }
 
         configMenu.getItems().addAll(saveItem, loadItem, resetItem, new SeparatorMenuItem(), presetsMenu);
-        menuBar.getMenus().add(configMenu);
+        Menu toolsMenu = new Menu("Tools");
+        MenuItem analyzeItem = new MenuItem("Beam Analysis");
+        analyzeItem.setOnAction(e -> showBeamAnalysis());
+        toolsMenu.getItems().add(analyzeItem);
+        menuBar.getMenus().addAll(configMenu, toolsMenu);
 
         // Left panel (settings, scrollable)
         VBox leftContent = new VBox(10);
@@ -327,6 +333,61 @@ public class SimulationFX extends Application {
         updateScheme();
         elementManager.getElements().addListener((javafx.collections.ListChangeListener<? super OpticalElement>) change -> updateScheme());
         sourceTypeCombo.valueProperty().addListener((obs, old, newVal) -> updateScheme());
+    }
+    private void showBeamAnalysis() {
+        if (lastField == null) {
+            showWarning("No field data. Run simulation first.");
+            return;
+        }
+        BeamAnalyzer analyzer = new BeamAnalyzer(lastField);
+
+        Stage stage = new Stage();
+        stage.setTitle("Beam Analysis");
+        stage.initModality(Modality.NONE);
+        stage.initOwner(primaryStage);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(8);
+        grid.setPadding(new Insets(15));
+        grid.setStyle("-fx-background-color: #2e2e2e;");
+
+        Label titleLabel = new Label("Beam Parameters");
+        titleLabel.setStyle("-fx-text-fill: #e0e0e0; -fx-font-size: 16px; -fx-font-weight: bold;");
+        grid.add(titleLabel, 0, 0, 2, 1);
+
+        int row = 1;
+        addResultRow(grid, row++, "Center X (m)", String.format("%.4e", analyzer.getCenterX()));
+        addResultRow(grid, row++, "Center Y (m)", String.format("%.4e", analyzer.getCenterY()));
+        addResultRow(grid, row++, "Sigma X (m)", String.format("%.4e", analyzer.getSigmaX()));
+        addResultRow(grid, row++, "Sigma Y (m)", String.format("%.4e", analyzer.getSigmaY()));
+        addResultRow(grid, row++, "Radius 1/e² X (m)", String.format("%.4e", analyzer.getRadiusX()));
+        addResultRow(grid, row++, "Radius 1/e² Y (m)", String.format("%.4e", analyzer.getRadiusY()));
+        addResultRow(grid, row++, "FWHM X (m)", String.format("%.4e", analyzer.getFwhmX()));
+        addResultRow(grid, row++, "FWHM Y (m)", String.format("%.4e", analyzer.getFwhmY()));
+        addResultRow(grid, row++, "Peak Intensity", String.format("%.4e", analyzer.getPeakIntensity()));
+        addResultRow(grid, row++, "Total Power", String.format("%.4e", analyzer.getTotalIntensity()));
+
+        Button closeButton = new Button("Close");
+        closeButton.setStyle("-fx-background-color: #4a4a4a; -fx-text-fill: #e0e0e0;");
+        closeButton.setOnAction(e -> stage.close());
+
+        VBox vbox = new VBox(15, grid, closeButton);
+        vbox.setAlignment(Pos.CENTER);
+        vbox.setStyle("-fx-background-color: #2e2e2e;");
+
+        Scene scene = new Scene(vbox, 500, 450);
+
+        scene.getStylesheets().add(getClass().getResource("/dark-theme.css").toExternalForm());
+
+        stage.setScene(scene);
+        stage.setResizable(false);
+        stage.show();
+    }
+
+    private void addResultRow(GridPane grid, int row, String label, String value) {
+        grid.add(new Label(label), 0, row);
+        grid.add(new Label(value), 1, row);
     }
 
     /**
