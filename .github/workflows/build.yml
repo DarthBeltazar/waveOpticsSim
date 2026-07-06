@@ -32,10 +32,10 @@ jobs:
           - os: macos-latest
             platform: mac
             fx_suffix: macos
-            fx_arch: aarch64          # изменено на Apple Silicon
+            fx_arch: aarch64
             fx_ext: tar.gz
-            jpackage_type: app-image
-            artifact_name: OpticsSimulation-macos-arm64.zip   # имя артефакта отражает архитектуру
+            jpackage_type: dmg
+            artifact_name: OpticsSimulation-macos-arm64.dmg
 
     env:
       JAVA_VERSION: 21
@@ -143,7 +143,8 @@ jobs:
             --main-jar ${{ steps.paths.outputs.jar_name }} \
             --main-class com.optics.simulation.ui.SimulationFX \
             --module-path "${{ steps.paths.outputs.fx_lib }}" \
-            --add-modules javafx.controls,javafx.graphics \
+            --add-modules javafx.controls,javafx.graphics,javafx.base \
+            --java-options '-Dprism.order=metal' \
             --name OpticsSimulation \
             --type ${{ matrix.jpackage_type }} \
             --dest ./
