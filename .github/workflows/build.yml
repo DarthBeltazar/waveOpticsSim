@@ -19,18 +19,21 @@ jobs:
             platform: linux
             fx_suffix: linux
             fx_arch: x64
+            fx_ext: tar.gz
             jpackage_type: app-image
             artifact_name: OpticsSimulation-linux.zip
           - os: windows-latest
             platform: win
-            fx_suffix: win
+            fx_suffix: windows
             fx_arch: x64
+            fx_ext: zip
             jpackage_type: app-image
             artifact_name: OpticsSimulation-windows.zip
           - os: macos-latest
             platform: mac
-            fx_suffix: osx
-            fx_arch: x64   # для Intel Mac; для Apple Silicon поменяйте на aarch64
+            fx_suffix: macos
+            fx_arch: x64
+            fx_ext: tar.gz
             jpackage_type: app-image
             artifact_name: OpticsSimulation-macos.zip
 
@@ -60,48 +63,54 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Cache JavaFX SDK
+      - name: Cache JavaFX SDK (Oracle builds)
         id: cache-javafx
         uses: actions/cache@v4
         with:
           path: javafx-sdk-${{ env.FX_VERSION }}
-          key: javafx-${{ env.FX_VERSION }}-${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}
+          key: javafx-oracle-${{ env.FX_VERSION }}-${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}
 
-      - name: Download and extract JavaFX SDK (Windows)
-        if: runner.os == 'Windows' && steps.cache-javafx.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: |
-          $url = "https://download2.gluonhq.com/openjfx/$env:FX_VERSION/openjfx-$env:FX_VERSION_${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}_bin-sdk.zip"
-          Write-Host "Downloading $url"
-          Invoke-WebRequest -Uri $url -OutFile javafx-sdk.zip
-          if (-not (Test-Path javafx-sdk.zip) -or (Get-Item javafx-sdk.zip).Length -eq 0) {
-            Write-Error "Download failed or empty file"
-            exit 1
-          }
-          Expand-Archive -Path javafx-sdk.zip -DestinationPath .
-          Remove-Item javafx-sdk.zip
-          if (-not (Test-Path "javafx-sdk-$env:FX_VERSION")) {
-            Write-Error "JavaFX SDK not extracted correctly"
-            exit 1
-          }
-
-      - name: Download and extract JavaFX SDK (Unix)
-        if: runner.os != 'Windows' && steps.cache-javafx.outputs.cache-hit != 'true'
+      - name: Download and extract JavaFX SDK (Oracle)
+        if: steps.cache-javafx.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          FX_URL="https://download2.gluonhq.com/openjfx/${{ env.FX_VERSION }}/openjfx-${{ env.FX_VERSION }}_${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}_bin-sdk.zip"
-          echo "Downloading $FX_URL"
-          curl -L -o javafx-sdk.zip "$FX_URL"
-          if [ ! -s javafx-sdk.zip ]; then
-            echo "Error: downloaded file is empty"
+          # Define the base URL for Oracle JavaFX builds
+          BASE_URL="https://download.java.net/java/GA/javafx${{ env.FX_VERSION }}/0dc89a29ffa34addbe3057926acea09a/GPL"
+          FILE_NAME="openjfx-${{ env.FX_VERSION }}_${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}_bin-sdk.${{ matrix.fx_ext }}"
+          DOWNLOAD_URL="$BASE_URL/$FILE_NAME"
+          
+          echo "Downloading JavaFX SDK from: $DOWNLOAD_URL"
+          curl -L -o javafx-sdk.${{ matrix.fx_ext }} "$DOWNLOAD_URL"
+          
+          if [ ! -s javafx-sdk.${{ matrix.fx_ext }} ]; then
+            echo "Error: Downloaded file is empty or does not exist"
             exit 1
           fi
-          unzip -q javafx-sdk.zip -d .
-          rm javafx-sdk.zip
-          if [ ! -d "javafx-sdk-${{ env.FX_VERSION }}" ]; then
-            echo "Error: JavaFX SDK not extracted properly"
+          
+          echo "Extracting JavaFX SDK..."
+          if [[ "${{ matrix.fx_ext }}" == "zip" ]]; then
+            unzip -q javafx-sdk.${{ matrix.fx_ext }} -d .
+          else
+            tar -xzf javafx-sdk.${{ matrix.fx_ext }}
+          fi
+          
+          rm javafx-sdk.${{ matrix.fx_ext }}
+          
+          # Rename the extracted folder to a consistent name
+          EXTRACTED_DIR=$(find . -maxdepth 1 -type d -name "javafx-sdk-*" | head -n 1)
+          if [ -z "$EXTRACTED_DIR" ]; then
+            echo "Error: Could not find extracted JavaFX SDK directory"
             exit 1
           fi
+          mv "$EXTRACTED_DIR" "javafx-sdk-${{ env.FX_VERSION }}"
+          
+          echo "JavaFX SDK successfully extracted to javafx-sdk-${{ env.FX_VERSION }}"
+
+      - name: List contents of JavaFX SDK (diagnostic)
+        shell: bash
+        run: |
+          echo "Contents of javafx-sdk-${{ env.FX_VERSION }}:"
+          ls -la javafx-sdk-${{ env.FX_VERSION }}/
 
       - name: Grant execute permission for gradlew (Linux/macOS)
         if: runner.os != 'Windows'
