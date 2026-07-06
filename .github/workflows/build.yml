@@ -19,23 +19,20 @@ jobs:
             platform: linux
             fx_suffix: linux
             fx_arch: x64
-            fx_ext: tar.gz
             jpackage_type: app-image
             artifact_name: OpticsSimulation-linux.zip
           - os: windows-latest
             platform: win
-            fx_suffix: windows
+            fx_suffix: win
             fx_arch: x64
-            fx_ext: zip
             jpackage_type: app-image
             artifact_name: OpticsSimulation-windows.zip
           - os: macos-latest
             platform: mac
-            fx_suffix: macos
-            fx_arch: aarch64
-            fx_ext: tar.gz
-            jpackage_type: dmg
-            artifact_name: OpticsSimulation-macos-arm64.dmg
+            fx_suffix: osx
+            fx_arch: x64
+            jpackage_type: app-image
+            artifact_name: OpticsSimulation-macos.zip
 
     env:
       JAVA_VERSION: 21
@@ -63,61 +60,48 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Cache JavaFX SDK (Oracle builds)
+      - name: Cache JavaFX SDK
         id: cache-javafx
         uses: actions/cache@v4
         with:
           path: javafx-sdk-${{ env.FX_VERSION }}
-          key: javafx-oracle-${{ env.FX_VERSION }}-${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}
+          key: javafx-${{ env.FX_VERSION }}-${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}
 
-      - name: Download and extract JavaFX SDK (Oracle)
-        if: steps.cache-javafx.outputs.cache-hit != 'true'
+      - name: Download and extract JavaFX SDK (Windows)
+        if: runner.os == 'Windows' && steps.cache-javafx.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $url = "https://download2.gluonhq.com/openjfx/$env:FX_VERSION/openjfx-$env:FX_VERSION_${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}_bin-sdk.zip"
+          Write-Host "Downloading $url"
+          Invoke-WebRequest -Uri $url -OutFile javafx-sdk.zip
+          if (-not (Test-Path javafx-sdk.zip) -or (Get-Item javafx-sdk.zip).Length -eq 0) {
+            Write-Error "Download failed or empty file"
+            exit 1
+          }
+          Expand-Archive -Path javafx-sdk.zip -DestinationPath .
+          Remove-Item javafx-sdk.zip
+          if (-not (Test-Path "javafx-sdk-$env:FX_VERSION")) {
+            Write-Error "JavaFX SDK not extracted correctly"
+            exit 1
+          }
+
+      - name: Download and extract JavaFX SDK (Unix)
+        if: runner.os != 'Windows' && steps.cache-javafx.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          BASE_URL="https://download.java.net/java/GA/javafx${{ env.FX_VERSION }}/0dc89a29ffa34addbe3057926acea09a/GPL"
-          FILE_NAME="openjfx-${{ env.FX_VERSION }}_${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}_bin-sdk.${{ matrix.fx_ext }}"
-          DOWNLOAD_URL="$BASE_URL/$FILE_NAME"
-          
-          echo "Downloading JavaFX SDK from: $DOWNLOAD_URL"
-          curl -L -o javafx-sdk.${{ matrix.fx_ext }} "$DOWNLOAD_URL"
-          
-          if [ ! -s javafx-sdk.${{ matrix.fx_ext }} ]; then
-            echo "Error: Downloaded file is empty or does not exist"
+          FX_URL="https://download2.gluonhq.com/openjfx/${{ env.FX_VERSION }}/openjfx-${{ env.FX_VERSION }}_${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}_bin-sdk.zip"
+          echo "Downloading $FX_URL"
+          curl -L -o javafx-sdk.zip "$FX_URL"
+          if [ ! -s javafx-sdk.zip ]; then
+            echo "Error: downloaded file is empty"
             exit 1
           fi
-          
-          echo "Extracting JavaFX SDK..."
-          if [[ "${{ matrix.fx_ext }}" == "zip" ]]; then
-            unzip -q javafx-sdk.${{ matrix.fx_ext }} -d .
-          else
-            tar -xzf javafx-sdk.${{ matrix.fx_ext }}
-          fi
-          
-          rm javafx-sdk.${{ matrix.fx_ext }}
-          
-          # Find the extracted directory
-          EXTRACTED_DIR=$(find . -maxdepth 1 -type d -name "javafx-sdk-*" | head -n 1)
-          if [ -z "$EXTRACTED_DIR" ]; then
-            echo "Error: Could not find extracted JavaFX SDK directory"
+          unzip -q javafx-sdk.zip -d .
+          rm javafx-sdk.zip
+          if [ ! -d "javafx-sdk-${{ env.FX_VERSION }}" ]; then
+            echo "Error: JavaFX SDK not extracted properly"
             exit 1
           fi
-          
-          # Rename only if needed
-          EXPECTED_NAME="javafx-sdk-${{ env.FX_VERSION }}"
-          if [ "$EXTRACTED_DIR" != "./$EXPECTED_NAME" ]; then
-            echo "Renaming $EXTRACTED_DIR to $EXPECTED_NAME"
-            mv "$EXTRACTED_DIR" "$EXPECTED_NAME"
-          else
-            echo "Directory already has expected name: $EXTRACTED_DIR"
-          fi
-          
-          echo "JavaFX SDK ready at $EXPECTED_NAME"
-
-      - name: List contents of JavaFX SDK (diagnostic)
-        shell: bash
-        run: |
-          echo "Contents of javafx-sdk-${{ env.FX_VERSION }}:"
-          ls -la javafx-sdk-${{ env.FX_VERSION }}/
 
       - name: Grant execute permission for gradlew (Linux/macOS)
         if: runner.os != 'Windows'
@@ -138,36 +122,39 @@ jobs:
       - name: Create portable app with jpackage
         shell: bash
         run: |
+          mkdir -p build/jpackage
           jpackage \
             --input build/libs \
             --main-jar ${{ steps.paths.outputs.jar_name }} \
             --main-class com.optics.simulation.ui.SimulationFX \
             --module-path "${{ steps.paths.outputs.fx_lib }}" \
-            --add-modules javafx.controls,javafx.graphics,javafx.base \
-            --java-options '-Dprism.order=metal' \
+            --add-modules javafx.controls,javafx.graphics \
             --name OpticsSimulation \
             --type ${{ matrix.jpackage_type }} \
-            --dest ./
+            --dest build/jpackage \
+            --verbose
+          if [ ! -d "build/jpackage/OpticsSimulation" ] && [ ! -d "build/jpackage/OpticsSimulation.app" ]; then
+            echo "Error: jpackage did not create expected output directory."
+            echo "Contents of build/jpackage:"
+            ls -la build/jpackage || true
+            exit 1
+          fi
 
       - name: List files after jpackage (diagnostic)
         shell: bash
         run: |
-          echo "Contents of current directory:"
-          ls -la
-          echo "Searching for OpticsSimulation* folders:"
-          find . -maxdepth 1 -type d -name "OpticsSimulation*" || true
+          echo "Contents of build/jpackage:"
+          ls -la build/jpackage
 
-      - name: Rename app folder if needed (macOS/Linux)
-        if: runner.os != 'Windows'
+      - name: Prepare app folder for packaging
         shell: bash
         run: |
-          if [ -d "OpticsSimulation" ]; then
-            echo "Folder OpticsSimulation exists."
-          elif [ -d "OpticsSimulation.app" ]; then
-            echo "Found OpticsSimulation.app, renaming to OpticsSimulation"
-            mv OpticsSimulation.app OpticsSimulation
+          if [ -d "build/jpackage/OpticsSimulation" ]; then
+            mv build/jpackage/OpticsSimulation .
+          elif [ -d "build/jpackage/OpticsSimulation.app" ]; then
+            mv build/jpackage/OpticsSimulation.app OpticsSimulation
           else
-            echo "Error: Neither OpticsSimulation nor OpticsSimulation.app found."
+            echo "Error: Could not find OpticsSimulation or OpticsSimulation.app in build/jpackage"
             exit 1
           fi
 
