@@ -26,7 +26,7 @@ jobs:
           - os: macos-latest
             artifact_name: OpticsSimulation-macos.zip
             fx_suffix: mac
-            fx_arch: aarch64
+            fx_arch: aarch64   # Apple Silicon (M1/M2)
 
     env:
       JAVA_VERSION: 21
@@ -72,6 +72,26 @@ jobs:
           PLATFORM="${{ matrix.fx_suffix }}"
           ARCH="${{ matrix.fx_arch }}"
 
+          # Определяем классификатор для платформенно-зависимых JAR
+          case "$PLATFORM" in
+            win)
+              CLASSIFIER="win"
+              ;;
+            linux)
+              CLASSIFIER="linux"
+              ;;
+            mac)
+              if [ "$ARCH" = "aarch64" ]; then
+                CLASSIFIER="mac-aarch64"
+              else
+                CLASSIFIER="mac"
+              fi
+              ;;
+            *)
+              CLASSIFIER="$PLATFORM"
+              ;;
+          esac
+
           for MODULE in $MODULES; do
             # Основной JAR (без платформы)
             JAR_MAIN="javafx-${MODULE}-${FX_VERSION}.jar"
@@ -83,8 +103,7 @@ jobs:
               exit 1
             fi
 
-            # Платформенно-зависимый JAR
-            JAR_PLATFORM="javafx-${MODULE}-${FX_VERSION}-${PLATFORM}-${ARCH}.jar"
+            JAR_PLATFORM="javafx-${MODULE}-${FX_VERSION}-${CLASSIFIER}.jar"
             URL_PLATFORM="https://repo1.maven.org/maven2/org/openjfx/javafx-${MODULE}/${FX_VERSION}/${JAR_PLATFORM}"
             echo "Downloading $URL_PLATFORM"
             curl -L -o "$JAR_PLATFORM" "$URL_PLATFORM"
