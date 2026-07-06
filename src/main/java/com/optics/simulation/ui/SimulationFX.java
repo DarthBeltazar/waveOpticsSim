@@ -2,7 +2,8 @@ package com.optics.simulation.ui;
 
 import com.optics.simulation.AngularSpectrumPropagator;
 import com.optics.simulation.ComplexField;
-import com.optics.simulation.ImageUtils;
+import com.optics.simulation.util.Colormap;
+import com.optics.simulation.util.ImageUtils;
 import com.optics.simulation.engine.SimulationEngine;
 import com.optics.simulation.factory.ElementFactory;
 import com.optics.simulation.manager.ElementManager;
@@ -16,18 +17,22 @@ import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
 import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.GridPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.stream.IntStream;
+
+import static com.optics.simulation.util.ImageUtils.findMax;
+import static com.optics.simulation.util.ImageUtils.findMin;
 
 public class SimulationFX extends Application {
 
@@ -45,12 +50,18 @@ public class SimulationFX extends Application {
     private LineChart<Number, Number> intensityChart;
     private LineChart<Number, Number> phaseChart;
     private VBox paramBox;
-    private ImageView intensityImageView;
-    private ImageView phaseImageView;
     private ProgressIndicator progressIndicator;
     private Label statusLabel;
     private SchemeRenderer schemeRenderer;
     private int editingIndex = -1;
+    private ImageView intensityImageView, phaseImageView;
+    private Canvas intensityColorbarCanvas, phaseColorbarCanvas;
+    private ScrollPane intensityScroll, phaseScroll;
+    private CheckBox logScaleCheck;
+    private ComboBox<String> colormapCombo;
+    private Slider zoomSlider;
+    private Button saveIntensityBtn, savePhaseBtn;
+    private ComplexField lastField = null;
 
     public static void main(String[] args) {
         launch(args);
@@ -60,9 +71,9 @@ public class SimulationFX extends Application {
     // UI Creation Methods
     @Override
     public void start(Stage primaryStage) {
-        primaryStage.setTitle("Wave Optical Simulation");
+        primaryStage.setTitle("Optical Simulation - SOLID");
 
-        // Left panel (scrollable)
+        // Left panel (settings, scrollable)
         VBox leftContent = new VBox(10);
         leftContent.setPadding(new Insets(10));
         leftContent.getChildren().addAll(
@@ -77,74 +88,232 @@ public class SimulationFX extends Application {
         leftScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         leftScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
 
-        // Right panel: fixed images at bottom, scrollable content above
-        BorderPane rightPane = new BorderPane();
-        rightPane.setPadding(new Insets(10));
+        // Right panel (single scrollable page)
+        VBox rightContent = new VBox(10);
+        rightContent.setPadding(new Insets(10));
+        rightContent.setFillWidth(true);
 
-        // Scrollable content (scheme + charts)
-        VBox scrollableContent = new VBox(10);
-        scrollableContent.setPadding(new Insets(0, 0, 10, 0));
-
+        // 1. Optical Scheme
         schemeCanvas = new Canvas(600, 350);
         schemeCanvas.setStyle("-fx-border-color: lightgray; -fx-border-width: 1;");
         schemeRenderer = new SchemeRenderer(schemeCanvas);
         VBox schemeBox = new VBox(new Label("Optical Scheme"), schemeCanvas);
         schemeBox.setAlignment(Pos.TOP_CENTER);
-        scrollableContent.getChildren().add(schemeBox);
+        rightContent.getChildren().add(schemeBox);
 
+        // 2. Profiles (charts)
         VBox chartsBox = createCharts();
-        scrollableContent.getChildren().add(chartsBox);
+        rightContent.getChildren().add(chartsBox);
 
-        ScrollPane scrollPane = new ScrollPane(scrollableContent);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        rightPane.setCenter(scrollPane);
-
-        // Fixed images at bottom
+        // 3. 2D Images with controls
         VBox imagesBox = new VBox(10);
         imagesBox.setPadding(new Insets(10));
-        imagesBox.setMaxHeight(400);
         imagesBox.setFillWidth(true);
 
-        intensityImageView = new ImageView();
-        intensityImageView.setFitWidth(600);
-        intensityImageView.setFitHeight(200);
-        intensityImageView.setPreserveRatio(true);
-        intensityImageView.setSmooth(true);
+        // Controls for images
+        HBox controls = new HBox(15);
+        controls.setAlignment(Pos.CENTER_LEFT);
+        controls.setPadding(new Insets(5));
 
-        phaseImageView = new ImageView();
-        phaseImageView.setFitWidth(600);
-        phaseImageView.setFitHeight(200);
-        phaseImageView.setPreserveRatio(true);
-        phaseImageView.setSmooth(true);
+        colormapCombo = new ComboBox<>();
+        colormapCombo.getItems().addAll("Grayscale", "Viridis", "Jet", "Hot", "Cool", "Plasma");
+        colormapCombo.setValue("Viridis");
+        colormapCombo.setTooltip(new Tooltip("Color map for 2D images"));
 
-        HBox imageViews = new HBox(20);
-        imageViews.setAlignment(Pos.CENTER);
-        imageViews.getChildren().addAll(
-                new VBox(new Label("Intensity (log)"), intensityImageView),
-                new VBox(new Label("Phase"), phaseImageView)
+        logScaleCheck = new CheckBox("Log scale");
+        logScaleCheck.setSelected(true);
+        logScaleCheck.setTooltip(new Tooltip("Apply log(1+I) scaling to intensity"));
+
+        zoomSlider = new Slider(0.5, 2.0, 1.0);
+        zoomSlider.setShowTickLabels(true);
+        zoomSlider.setShowTickMarks(true);
+        zoomSlider.setMajorTickUnit(0.5);
+        zoomSlider.setMinorTickCount(0);
+        zoomSlider.setBlockIncrement(0.1);
+        zoomSlider.setPrefWidth(120);
+        zoomSlider.setTooltip(new Tooltip("Zoom level for images"));
+
+        saveIntensityBtn = new Button("Save Intensity");
+        savePhaseBtn = new Button("Save Phase");
+        saveIntensityBtn.setTooltip(new Tooltip("Save current intensity image as PNG"));
+        savePhaseBtn.setTooltip(new Tooltip("Save current phase image as PNG"));
+
+        controls.getChildren().addAll(
+                new Label("Colormap:"), colormapCombo,
+                logScaleCheck,
+                new Label("Zoom:"), zoomSlider,
+                saveIntensityBtn, savePhaseBtn
         );
-        imagesBox.getChildren().add(imageViews);
+        imagesBox.getChildren().add(controls);
 
-        rightPane.setBottom(imagesBox);
-        BorderPane.setMargin(imagesBox, new Insets(10, 0, 0, 0));
+        // ImageViews and ScrollPanes for panning
+        intensityImageView = new ImageView();
+        phaseImageView = new ImageView();
+        intensityImageView.setPreserveRatio(true);
+        phaseImageView.setPreserveRatio(true);
+        intensityImageView.setFitWidth(400);
+        phaseImageView.setFitWidth(400);
 
-        // SplitPane: left scrollable, right with fixed images
+        intensityScroll = new ScrollPane(intensityImageView);
+        intensityScroll.setFitToWidth(true);
+        intensityScroll.setFitToHeight(true);
+        intensityScroll.setPannable(true);
+        intensityScroll.setPrefViewportHeight(250);
+
+        phaseScroll = new ScrollPane(phaseImageView);
+        phaseScroll.setFitToWidth(true);
+        phaseScroll.setFitToHeight(true);
+        phaseScroll.setPannable(true);
+        phaseScroll.setPrefViewportHeight(250);
+
+        // Colorbar canvases
+        intensityColorbarCanvas = new Canvas(20, 250);
+        phaseColorbarCanvas = new Canvas(20, 250);
+
+        // Arrange images with colorbars
+        HBox intensityPane = new HBox(5, intensityScroll, intensityColorbarCanvas);
+        HBox.setHgrow(intensityScroll, Priority.ALWAYS);
+        HBox phasePane = new HBox(5, phaseScroll, phaseColorbarCanvas);
+        HBox.setHgrow(phaseScroll, Priority.ALWAYS);
+
+        imagesBox.getChildren().addAll(
+                new Label("Intensity (log scale)"),
+                intensityPane,
+                new Label("Phase"),
+                phasePane
+        );
+
+        rightContent.getChildren().add(imagesBox);
+
+        // Wrap rightContent in a ScrollPane to allow vertical scrolling
+        ScrollPane rightScroll = new ScrollPane(rightContent);
+        rightScroll.setFitToWidth(true);
+        rightScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        rightScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+
+        // SplitPane with left and right scrollable panels
         SplitPane splitPane = new SplitPane();
         splitPane.setOrientation(Orientation.HORIZONTAL);
-        splitPane.getItems().addAll(leftScroll, rightPane);
+        splitPane.getItems().addAll(leftScroll, rightScroll);
         splitPane.setDividerPositions(0.35);
 
+        // Scene
         Scene scene = new Scene(splitPane, 1400, 1000);
         scene.getStylesheets().add(getClass().getResource("/dark-theme.css").toExternalForm());
         primaryStage.setScene(scene);
         primaryStage.show();
 
+        // Event Handlers (save, listeners)
+        // Save intensity
+        saveIntensityBtn.setOnAction(e -> {
+            if (lastField == null) {
+                showWarning("No data to save. Run simulation first.");
+                return;
+            }
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Save Intensity Image");
+            fileChooser.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("PNG Image", "*.png")
+            );
+            fileChooser.setInitialFileName("intensity.png");
+            File file = fileChooser.showSaveDialog(primaryStage);
+            if (file != null) {
+                try {
+                    Colormap cmap = Colormap.fromDisplayName(colormapCombo.getValue());
+                    if (cmap == null) cmap = Colormap.GRAYSCALE;
+                    boolean log = logScaleCheck.isSelected();
+                    ImageUtils.saveColoredImage(lastField.computeIntensity(), cmap, log, file.getAbsolutePath());
+                } catch (IOException ex) {
+                    showError("Failed to save: " + ex.getMessage());
+                }
+            }
+        });
+
+        // Save phase
+        savePhaseBtn.setOnAction(e -> {
+            if (lastField == null) {
+                showWarning("No data to save. Run simulation first.");
+                return;
+            }
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Save Phase Image");
+            fileChooser.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("PNG Image", "*.png")
+            );
+            fileChooser.setInitialFileName("phase.png");
+            File file = fileChooser.showSaveDialog(primaryStage);
+            if (file != null) {
+                try {
+                    Colormap cmap = Colormap.fromDisplayName(colormapCombo.getValue());
+                    if (cmap == null) cmap = Colormap.GRAYSCALE;
+                    ImageUtils.saveColoredImage(lastField.computePhase(), cmap, false, file.getAbsolutePath());
+                } catch (IOException ex) {
+                    showError("Failed to save: " + ex.getMessage());
+                }
+            }
+        });
+
+        // Listener for colormap change
+        colormapCombo.valueProperty().addListener((obs, old, newVal) -> {
+            if (lastField != null) updateImages(lastField);
+        });
+
+        // Listener for log scale toggle
+        logScaleCheck.selectedProperty().addListener((obs, old, newVal) -> {
+            if (lastField != null) updateImages(lastField);
+        });
+
+        // Listener for zoom slider
+        zoomSlider.valueProperty().addListener((obs, old, newVal) -> {
+            double zoom = newVal.doubleValue();
+            intensityImageView.setFitWidth(zoom * 400);
+            phaseImageView.setFitWidth(zoom * 400);
+        });
+
         // Initial draw
         updateScheme();
         elementManager.getElements().addListener((javafx.collections.ListChangeListener<? super OpticalElement>) change -> updateScheme());
         sourceTypeCombo.valueProperty().addListener((obs, old, newVal) -> updateScheme());
+    }
+
+    /**
+     * Updates the 2D images (intensity and phase) with the current colormap and log scale settings.
+     * @param field the field to visualize
+     */
+    private void updateImages(ComplexField field) {
+        if (field == null) return;
+        lastField = field;
+
+        Colormap cmap = Colormap.fromDisplayName(colormapCombo.getValue());
+        if (cmap == null) cmap = Colormap.GRAYSCALE;
+        boolean log = logScaleCheck.isSelected();
+
+        double[][] intensity = field.computeIntensity();
+        double[][] phase = field.computePhase();
+
+        // Update ImageViews
+        intensityImageView.setImage(ImageUtils.createColoredImage(intensity, cmap, log));
+        phaseImageView.setImage(ImageUtils.createColoredImage(phase, cmap, false)); // phase always linear
+
+        // Update colorbars
+        double iMin = findMin(intensity);
+        double iMax = findMax(intensity);
+        double pMin = findMin(phase);
+        double pMax = findMax(phase);
+        ImageUtils.drawColorbar(intensityColorbarCanvas, cmap, iMin, iMax, "Intensity");
+        ImageUtils.drawColorbar(phaseColorbarCanvas, cmap, pMin, pMax, "Phase");
+    }
+
+    /** Show a warning dialog. */
+    private void showWarning(String msg) {
+        Alert alert = new Alert(Alert.AlertType.WARNING, msg);
+        alert.showAndWait();
+    }
+
+    /** Show an error dialog. */
+    private void showError(String msg) {
+        Alert alert = new Alert(Alert.AlertType.ERROR, msg);
+        alert.showAndWait();
     }
 
     private GridPane createCommonParams() {
@@ -458,9 +627,12 @@ public class SimulationFX extends Application {
                 Platform.runLater(() -> {
                     updateCharts(field);
                     updateScheme();
-                    // Update 2D images
-                    intensityImageView.setImage(ImageUtils.createImage(field.computeIntensity(), true));
-                    phaseImageView.setImage(ImageUtils.createImage(field.computePhase(), false));
+                    Colormap cmap = Colormap.fromDisplayName(colormapCombo.getValue());
+                    if (cmap == null) cmap = Colormap.GRAYSCALE;
+                    intensityImageView.setImage(ImageUtils.createColoredImage(field.computeIntensity(), cmap, true));
+                    phaseImageView.setImage(ImageUtils.createColoredImage(field.computePhase(), cmap, false));
+                    lastField = field;
+                    updateImages(field);
                     progressIndicator.setVisible(false);
                     statusLabel.setText("Done.");
                 });

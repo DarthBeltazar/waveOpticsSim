@@ -1,5 +1,7 @@
 package com.optics.simulation;
 
+import com.optics.simulation.util.ImageUtils;
+
 import java.io.IOException;
 import java.util.function.DoubleBinaryOperator;
 import java.util.stream.IntStream;
