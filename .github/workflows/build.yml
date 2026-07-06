@@ -17,20 +17,20 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux
-            fx_suffix: linux
             fx_arch: x64
+            fx_suffix: linux
             jpackage_type: app-image
             artifact_name: OpticsSimulation-linux.zip
           - os: windows-latest
             platform: win
-            fx_suffix: win
             fx_arch: x64
+            fx_suffix: win
             jpackage_type: app-image
             artifact_name: OpticsSimulation-windows.zip
           - os: macos-latest
             platform: mac
+            fx_arch: aarch64
             fx_suffix: osx
-            fx_arch: x64
             jpackage_type: app-image
             artifact_name: OpticsSimulation-macos.zip
 
@@ -60,36 +60,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Cache JavaFX SDK
+      - name: Cache JavaFX SDK (from GitHub Releases)
         id: cache-javafx
         uses: actions/cache@v4
         with:
-          path: javafx-sdk-${{ env.FX_VERSION }}
+          path: javafx-sdk
           key: javafx-${{ env.FX_VERSION }}-${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}
 
-      - name: Download and extract JavaFX SDK (Windows)
-        if: runner.os == 'Windows' && steps.cache-javafx.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: |
-          $url = "https://download2.gluonhq.com/openjfx/$env:FX_VERSION/openjfx-$env:FX_VERSION_${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}_bin-sdk.zip"
-          Write-Host "Downloading $url"
-          Invoke-WebRequest -Uri $url -OutFile javafx-sdk.zip
-          if (-not (Test-Path javafx-sdk.zip) -or (Get-Item javafx-sdk.zip).Length -eq 0) {
-            Write-Error "Download failed or empty file"
-            exit 1
-          }
-          Expand-Archive -Path javafx-sdk.zip -DestinationPath .
-          Remove-Item javafx-sdk.zip
-          if (-not (Test-Path "javafx-sdk-$env:FX_VERSION")) {
-            Write-Error "JavaFX SDK not extracted correctly"
-            exit 1
-          }
-
-      - name: Download and extract JavaFX SDK (Unix)
-        if: runner.os != 'Windows' && steps.cache-javafx.outputs.cache-hit != 'true'
+      - name: Download and extract JavaFX SDK (if not cached)
+        if: steps.cache-javafx.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          FX_URL="https://download2.gluonhq.com/openjfx/${{ env.FX_VERSION }}/openjfx-${{ env.FX_VERSION }}_${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}_bin-sdk.zip"
+          # Используем официальные релизы Gluon на GitHub
+          FX_URL="https://github.com/gluonhq/openjfx-releases/releases/download/${{ env.FX_VERSION }}/openjfx-${{ env.FX_VERSION }}_${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}_bin-sdk.zip"
           echo "Downloading $FX_URL"
           curl -L -o javafx-sdk.zip "$FX_URL"
           if [ ! -s javafx-sdk.zip ]; then
@@ -98,10 +81,13 @@ jobs:
           fi
           unzip -q javafx-sdk.zip -d .
           rm javafx-sdk.zip
+          # Проверяем, что SDK создана
           if [ ! -d "javafx-sdk-${{ env.FX_VERSION }}" ]; then
             echo "Error: JavaFX SDK not extracted properly"
             exit 1
           fi
+          # Переименовываем для единообразия
+          mv "javafx-sdk-${{ env.FX_VERSION }}" javafx-sdk
 
       - name: Grant execute permission for gradlew (Linux/macOS)
         if: runner.os != 'Windows'
@@ -117,7 +103,7 @@ jobs:
         run: |
           JAR_NAME=$(ls build/libs/*.jar | head -n1)
           echo "jar_name=${JAR_NAME##*/}" >> $GITHUB_OUTPUT
-          echo "fx_lib=$(pwd)/javafx-sdk-${{ env.FX_VERSION }}/lib" >> $GITHUB_OUTPUT
+          echo "fx_lib=$(pwd)/javafx-sdk/lib" >> $GITHUB_OUTPUT
 
       - name: Create portable app with jpackage
         shell: bash
