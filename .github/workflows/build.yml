@@ -26,7 +26,7 @@ jobs:
           - os: macos-latest
             artifact_name: OpticsSimulation-macos.zip
             fx_suffix: mac
-            fx_arch: aarch64   # Apple Silicon (M1/M2)
+            fx_arch: aarch64
 
     env:
       JAVA_VERSION: 21
