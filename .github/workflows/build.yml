@@ -17,20 +17,20 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux
-            fx_arch: x64
             fx_suffix: linux
+            fx_arch: x64
             jpackage_type: app-image
             artifact_name: OpticsSimulation-linux.zip
           - os: windows-latest
             platform: win
-            fx_arch: x64
             fx_suffix: win
+            fx_arch: x64
             jpackage_type: app-image
             artifact_name: OpticsSimulation-windows.zip
           - os: macos-latest
             platform: mac
-            fx_arch: aarch64
             fx_suffix: osx
+            fx_arch: x64   # для Intel Mac; для Apple Silicon измените на aarch64
             jpackage_type: app-image
             artifact_name: OpticsSimulation-macos.zip
 
@@ -60,27 +60,37 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Cache JavaFX SDK (from GitHub Releases)
+      - name: Cache JavaFX SDK (built from Maven Central)
         id: cache-javafx
         uses: actions/cache@v4
         with:
           path: javafx-sdk
           key: javafx-${{ env.FX_VERSION }}-${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}
 
-      - name: Download and extract JavaFX SDK from Maven Central (if not cached)
+      - name: Build JavaFX SDK from Maven Central (if not cached)
         if: steps.cache-javafx.outputs.cache-hit != 'true'
         shell: bash
         run: |
           mkdir -p javafx-sdk/lib
           cd javafx-sdk/lib
 
-          MODULES="base controls graphics media web"
+          MODULES="base controls graphics"
           FX_VERSION="${{ env.FX_VERSION }}"
           PLATFORM="${{ matrix.fx_suffix }}"
           ARCH="${{ matrix.fx_arch }}"
 
           for MODULE in $MODULES; do
-            # Платформенно-зависимый JAR (содержит нативные библиотеки)
+            # Основной (без платформенного суффикса)
+            JAR="javafx-${MODULE}-${FX_VERSION}.jar"
+            URL="https://repo1.maven.org/maven2/org/openjfx/javafx-${MODULE}/${FX_VERSION}/${JAR}"
+            echo "Downloading $URL"
+            curl -L -o "$JAR" "$URL"
+            if [ ! -s "$JAR" ]; then
+              echo "Error: failed to download $JAR"
+              exit 1
+            fi
+
+            # Платформенно-зависимый
             JAR="javafx-${MODULE}-${FX_VERSION}-${PLATFORM}-${ARCH}.jar"
             URL="https://repo1.maven.org/maven2/org/openjfx/javafx-${MODULE}/${FX_VERSION}/${JAR}"
             echo "Downloading $URL"
@@ -92,7 +102,8 @@ jobs:
           done
 
           cd ../..
-          echo "JavaFX SDK built successfully"
+          echo "JavaFX SDK built successfully in javafx-sdk/"
+
       - name: Grant execute permission for gradlew (Linux/macOS)
         if: runner.os != 'Windows'
         run: chmod +x gradlew
