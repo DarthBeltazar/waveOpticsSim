@@ -16,27 +16,20 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
         include:
           - os: ubuntu-latest
-            platform: linux
+            artifact_name: OpticsSimulation-linux.zip
             fx_suffix: linux
             fx_arch: x64
-            jpackage_type: app-image
-            artifact_name: OpticsSimulation-linux.zip
           - os: windows-latest
-            platform: win
+            artifact_name: OpticsSimulation-windows.zip
             fx_suffix: win
             fx_arch: x64
-            jpackage_type: app-image
-            artifact_name: OpticsSimulation-windows.zip
           - os: macos-latest
-            platform: mac
+            artifact_name: OpticsSimulation-macos.zip
             fx_suffix: mac
             fx_arch: aarch64
-            jpackage_type: app-image
-            artifact_name: OpticsSimulation-macos.zip
 
     env:
       JAVA_VERSION: 21
-      JAVA_DISTRO: temurin
       FX_VERSION: 21.0.2
 
     steps:
@@ -47,7 +40,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: ${{ env.JAVA_DISTRO }}
+          distribution: temurin
           cache: gradle
 
       - name: Cache Gradle wrapper and dependencies
@@ -131,9 +124,10 @@ jobs:
             --module-path "${{ steps.paths.outputs.fx_lib }}" \
             --add-modules javafx.controls,javafx.graphics \
             --name OpticsSimulation \
-            --type ${{ matrix.jpackage_type }} \
+            --type app-image \
             --dest build/jpackage \
             --verbose
+
           if [ ! -d "build/jpackage/OpticsSimulation" ] && [ ! -d "build/jpackage/OpticsSimulation.app" ]; then
             echo "Error: jpackage did not create expected output directory."
             echo "Contents of build/jpackage:"
