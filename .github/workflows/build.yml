@@ -32,10 +32,10 @@ jobs:
           - os: macos-latest
             platform: mac
             fx_suffix: macos
-            fx_arch: x64
+            fx_arch: aarch64          # изменено на Apple Silicon
             fx_ext: tar.gz
             jpackage_type: app-image
-            artifact_name: OpticsSimulation-macos.zip
+            artifact_name: OpticsSimulation-macos-arm64.zip   # имя артефакта отражает архитектуру
 
     env:
       JAVA_VERSION: 21
@@ -74,7 +74,6 @@ jobs:
         if: steps.cache-javafx.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          # Define the base URL for Oracle JavaFX builds
           BASE_URL="https://download.java.net/java/GA/javafx${{ env.FX_VERSION }}/0dc89a29ffa34addbe3057926acea09a/GPL"
           FILE_NAME="openjfx-${{ env.FX_VERSION }}_${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}_bin-sdk.${{ matrix.fx_ext }}"
           DOWNLOAD_URL="$BASE_URL/$FILE_NAME"
@@ -96,15 +95,23 @@ jobs:
           
           rm javafx-sdk.${{ matrix.fx_ext }}
           
-          # Rename the extracted folder to a consistent name
+          # Find the extracted directory
           EXTRACTED_DIR=$(find . -maxdepth 1 -type d -name "javafx-sdk-*" | head -n 1)
           if [ -z "$EXTRACTED_DIR" ]; then
             echo "Error: Could not find extracted JavaFX SDK directory"
             exit 1
           fi
-          mv "$EXTRACTED_DIR" "javafx-sdk-${{ env.FX_VERSION }}"
           
-          echo "JavaFX SDK successfully extracted to javafx-sdk-${{ env.FX_VERSION }}"
+          # Rename only if needed
+          EXPECTED_NAME="javafx-sdk-${{ env.FX_VERSION }}"
+          if [ "$EXTRACTED_DIR" != "./$EXPECTED_NAME" ]; then
+            echo "Renaming $EXTRACTED_DIR to $EXPECTED_NAME"
+            mv "$EXTRACTED_DIR" "$EXPECTED_NAME"
+          else
+            echo "Directory already has expected name: $EXTRACTED_DIR"
+          fi
+          
+          echo "JavaFX SDK ready at $EXPECTED_NAME"
 
       - name: List contents of JavaFX SDK (diagnostic)
         shell: bash
