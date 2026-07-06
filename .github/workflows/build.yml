@@ -67,28 +67,32 @@ jobs:
           path: javafx-sdk
           key: javafx-${{ env.FX_VERSION }}-${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}
 
-      - name: Download and extract JavaFX SDK (if not cached)
+      - name: Download and extract JavaFX SDK from Maven Central (if not cached)
         if: steps.cache-javafx.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          # Используем официальные релизы Gluon на GitHub
-          FX_URL="https://github.com/gluonhq/openjfx-releases/releases/download/${{ env.FX_VERSION }}/openjfx-${{ env.FX_VERSION }}_${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}_bin-sdk.zip"
-          echo "Downloading $FX_URL"
-          curl -L -o javafx-sdk.zip "$FX_URL"
-          if [ ! -s javafx-sdk.zip ]; then
-            echo "Error: downloaded file is empty"
-            exit 1
-          fi
-          unzip -q javafx-sdk.zip -d .
-          rm javafx-sdk.zip
-          # Проверяем, что SDK создана
-          if [ ! -d "javafx-sdk-${{ env.FX_VERSION }}" ]; then
-            echo "Error: JavaFX SDK not extracted properly"
-            exit 1
-          fi
-          # Переименовываем для единообразия
-          mv "javafx-sdk-${{ env.FX_VERSION }}" javafx-sdk
+          mkdir -p javafx-sdk/lib
+          cd javafx-sdk/lib
 
+          MODULES="base controls graphics media web"
+          FX_VERSION="${{ env.FX_VERSION }}"
+          PLATFORM="${{ matrix.fx_suffix }}"
+          ARCH="${{ matrix.fx_arch }}"
+
+          for MODULE in $MODULES; do
+            # Платформенно-зависимый JAR (содержит нативные библиотеки)
+            JAR="javafx-${MODULE}-${FX_VERSION}-${PLATFORM}-${ARCH}.jar"
+            URL="https://repo1.maven.org/maven2/org/openjfx/javafx-${MODULE}/${FX_VERSION}/${JAR}"
+            echo "Downloading $URL"
+            curl -L -o "$JAR" "$URL"
+            if [ ! -s "$JAR" ]; then
+              echo "Error: failed to download $JAR"
+              exit 1
+            fi
+          done
+
+          cd ../..
+          echo "JavaFX SDK built successfully"
       - name: Grant execute permission for gradlew (Linux/macOS)
         if: runner.os != 'Windows'
         run: chmod +x gradlew
