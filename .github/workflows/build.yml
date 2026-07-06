@@ -2,85 +2,125 @@ name: Build and Package
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main ]
-  release:
-    types: [ created ]
+    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v4
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            fx_suffix: linux
+            fx_arch: x64
+            jpackage_type: app-image
+            artifact_name: OpticsSimulation-linux.zip
+          - os: windows-latest
+            platform: win
+            fx_suffix: win
+            fx_arch: x64
+            jpackage_type: app-image
+            artifact_name: OpticsSimulation-windows.zip
+          - os: macos-latest
+            platform: mac
+            fx_suffix: osx
+            fx_arch: x64   # для Intel Mac; для Apple Silicon используйте aarch64
+            jpackage_type: app-image
+            artifact_name: OpticsSimulation-macos.zip
 
-      - name: Set up JDK 21
+    env:
+      JAVA_VERSION: 21
+      JAVA_DISTRO: temurin
+      FX_VERSION: 21.0.2
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRO }}
+          cache: gradle
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+      - name: Cache Gradle wrapper and dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Cache JavaFX SDK
+        id: cache-javafx
+        uses: actions/cache@v4
+        with:
+          path: javafx-sdk-${{ env.FX_VERSION }}
+          key: javafx-${{ env.FX_VERSION }}-${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}
+
+      - name: Download JavaFX SDK (if not cached)
+        if: steps.cache-javafx.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          FX_URL="https://download2.gluonhq.com/openjfx/${{ env.FX_VERSION }}/openjfx-${{ env.FX_VERSION }}_${{ matrix.fx_suffix }}-${{ matrix.fx_arch }}_bin-sdk.zip"
+          echo "Downloading $FX_URL"
+          curl -L -o javafx-sdk.zip "$FX_URL"
+          unzip javafx-sdk.zip -d .
+          rm javafx-sdk.zip
+
+      - name: Grant execute permission for gradlew (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: chmod +x gradlew
 
       - name: Build Fat JAR
+        shell: bash
         run: ./gradlew clean jar
-        shell: bash
 
-      - name: Get JAR name
-        id: jar_name
-        run: echo "JAR_FILE=$(ls build/libs/*.jar | head -n1)" >> $GITHUB_OUTPUT
+      - name: Prepare paths for jpackage
+        id: paths
         shell: bash
-
-      - name: Download JavaFX SDK
         run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            curl -L -o javafx.zip https://download2.gluonhq.com/openjfx/21.0.2/openjfx-21.0.2_windows-x64_bin-sdk.zip
-          elif [ "$RUNNER_OS" == "macOS" ]; then
-            curl -L -o javafx.zip https://download2.gluonhq.com/openjfx/21.0.2/openjfx-21.0.2_osx-x64_bin-sdk.zip
-          elif [ "$RUNNER_OS" == "Linux" ]; then
-            curl -L -o javafx.zip https://download2.gluonhq.com/openjfx/21.0.2/openjfx-21.0.2_linux-x64_bin-sdk.zip
-          fi
-          unzip javafx.zip -d javafx-sdk
-        shell: bash
+          JAR_NAME=$(ls build/libs/*.jar | head -n1)
+          echo "jar_name=${JAR_NAME##*/}" >> $GITHUB_OUTPUT
+          echo "fx_lib=$(pwd)/javafx-sdk-${{ env.FX_VERSION }}/lib" >> $GITHUB_OUTPUT
 
-      - name: Create app-image with jpackage
+      - name: Create portable app with jpackage
+        shell: bash
         run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            JPACKAGE_CMD=jpackage
-            MODULE_PATH="$(pwd)/javafx-sdk/javafx-sdk-21/lib"
-          elif [ "$RUNNER_OS" == "macOS" ]; then
-            JPACKAGE_CMD=jpackage
-            MODULE_PATH="$(pwd)/javafx-sdk/javafx-sdk-21/lib"
-          else
-            JPACKAGE_CMD=jpackage
-            MODULE_PATH="$(pwd)/javafx-sdk/javafx-sdk-21/lib"
-          fi
-          $JPACKAGE_CMD --input build/libs \
-            --main-jar $(basename ${{ steps.jar_name.outputs.JAR_FILE }}) \
+          jpackage \
+            --input build/libs \
+            --main-jar ${{ steps.paths.outputs.jar_name }} \
             --main-class com.optics.simulation.ui.SimulationFX \
-            --module-path "$MODULE_PATH" \
+            --module-path "${{ steps.paths.outputs.fx_lib }}" \
             --add-modules javafx.controls,javafx.graphics \
             --name OpticsSimulation \
-            --type app-image \
-            --app-version 1.0 \
-            --dest ./artifacts
-        shell: bash
+            --type ${{ matrix.jpackage_type }} \
+            --dest ./
 
-      - name: Archive app-image
-        run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            7z a -tzip OpticsSimulation-windows.zip ./artifacts/OpticsSimulation
-          else
-            zip -r OpticsSimulation-${{ runner.os }}.zip ./artifacts/OpticsSimulation
-          fi
+      - name: Zip portable app (Windows)
+        if: runner.os == 'Windows'
         shell: bash
+        run: |
+          7z a -r ${{ matrix.artifact_name }} OpticsSimulation/
+
+      - name: Zip portable app (macOS/Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          zip -r ${{ matrix.artifact_name }} OpticsSimulation/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OpticsSimulation-${{ runner.os }}
-          path: OpticsSimulation-${{ runner.os }}.zip
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}
+          if-no-files-found: error
