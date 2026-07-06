@@ -29,8 +29,8 @@ jobs:
             artifact_name: OpticsSimulation-windows.zip
           - os: macos-latest
             platform: mac
-            fx_suffix: osx
-            fx_arch: x64   # для Intel Mac; для Apple Silicon измените на aarch64
+            fx_suffix: mac
+            fx_arch: aarch64
             jpackage_type: app-image
             artifact_name: OpticsSimulation-macos.zip
 
@@ -80,23 +80,23 @@ jobs:
           ARCH="${{ matrix.fx_arch }}"
 
           for MODULE in $MODULES; do
-            # Основной (без платформенного суффикса)
-            JAR="javafx-${MODULE}-${FX_VERSION}.jar"
-            URL="https://repo1.maven.org/maven2/org/openjfx/javafx-${MODULE}/${FX_VERSION}/${JAR}"
-            echo "Downloading $URL"
-            curl -L -o "$JAR" "$URL"
-            if [ ! -s "$JAR" ]; then
-              echo "Error: failed to download $JAR"
+            # Основной JAR (без платформы)
+            JAR_MAIN="javafx-${MODULE}-${FX_VERSION}.jar"
+            URL_MAIN="https://repo1.maven.org/maven2/org/openjfx/javafx-${MODULE}/${FX_VERSION}/${JAR_MAIN}"
+            echo "Downloading $URL_MAIN"
+            curl -L -o "$JAR_MAIN" "$URL_MAIN"
+            if [ ! -s "$JAR_MAIN" ]; then
+              echo "Error: failed to download $JAR_MAIN"
               exit 1
             fi
 
-            # Платформенно-зависимый
-            JAR="javafx-${MODULE}-${FX_VERSION}-${PLATFORM}-${ARCH}.jar"
-            URL="https://repo1.maven.org/maven2/org/openjfx/javafx-${MODULE}/${FX_VERSION}/${JAR}"
-            echo "Downloading $URL"
-            curl -L -o "$JAR" "$URL"
-            if [ ! -s "$JAR" ]; then
-              echo "Error: failed to download $JAR"
+            # Платформенно-зависимый JAR
+            JAR_PLATFORM="javafx-${MODULE}-${FX_VERSION}-${PLATFORM}-${ARCH}.jar"
+            URL_PLATFORM="https://repo1.maven.org/maven2/org/openjfx/javafx-${MODULE}/${FX_VERSION}/${JAR_PLATFORM}"
+            echo "Downloading $URL_PLATFORM"
+            curl -L -o "$JAR_PLATFORM" "$URL_PLATFORM"
+            if [ ! -s "$JAR_PLATFORM" ]; then
+              echo "Error: failed to download $JAR_PLATFORM"
               exit 1
             fi
           done
