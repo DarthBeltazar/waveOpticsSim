@@ -2,6 +2,7 @@ package com.optics.simulation.ui;
 
 import com.optics.simulation.AngularSpectrumPropagator;
 import com.optics.simulation.ComplexField;
+import com.optics.simulation.config.SimulationConfig;
 import com.optics.simulation.util.Colormap;
 import com.optics.simulation.util.ImageUtils;
 import com.optics.simulation.engine.SimulationEngine;
@@ -9,6 +10,7 @@ import com.optics.simulation.factory.ElementFactory;
 import com.optics.simulation.manager.ElementManager;
 import com.optics.simulation.model.*;
 import com.optics.simulation.renderer.SchemeRenderer;
+import com.optics.simulation.config.PresetConfigs;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.collections.ObservableList;
@@ -18,7 +20,6 @@ import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
-import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
@@ -33,6 +34,8 @@ import javafx.stage.Stage;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.IntStream;
 
 import static com.optics.simulation.util.ImageUtils.findMax;
@@ -66,6 +69,10 @@ public class SimulationFX extends Application {
     private Slider zoomSlider;
     private Button saveIntensityBtn, savePhaseBtn;
     private ComplexField lastField = null;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+    private Stage primaryStage;
+    private ComboBox<String> presetCombo;
+    private Button resetButton;
 
     public static void main(String[] args) {
         launch(args);
@@ -75,7 +82,45 @@ public class SimulationFX extends Application {
     // UI Creation Methods
     @Override
     public void start(Stage primaryStage) {
-        primaryStage.setTitle("Optical Simulation - SOLID");
+        this.primaryStage = primaryStage;
+        primaryStage.setTitle("Optical Simulation");
+
+        // --- Menu Bar ---
+        MenuBar menuBar = new MenuBar();
+        Menu configMenu = new Menu("Config");
+
+        MenuItem saveItem = new MenuItem("Save Configuration");
+        saveItem.setOnAction(e -> saveConfiguration());
+
+        MenuItem loadItem = new MenuItem("Load Configuration");
+        loadItem.setOnAction(e -> loadConfiguration());
+
+        MenuItem resetItem = new MenuItem("Reset All");
+        resetItem.setOnAction(e -> {
+            clearElements();
+            lastField = null;
+            intensityImageView.setImage(null);
+            phaseImageView.setImage(null);
+            updateScheme();
+            statusLabel.setText("Reset");
+        });
+
+        Menu presetsMenu = new Menu("Presets");
+        String[] presetNames = {
+                "Free space propagation",
+                "Lens focusing",
+                "Diffraction on slit",
+                "Grating diffraction",
+                "Lens + grating"
+        };
+        for (String name : presetNames) {
+            MenuItem presetItem = new MenuItem(name);
+            presetItem.setOnAction(e -> loadPreset(name));
+            presetsMenu.getItems().add(presetItem);
+        }
+
+        configMenu.getItems().addAll(saveItem, loadItem, resetItem, new SeparatorMenuItem(), presetsMenu);
+        menuBar.getMenus().add(configMenu);
 
         // Left panel (settings, scrollable)
         VBox leftContent = new VBox(10);
@@ -200,9 +245,13 @@ public class SimulationFX extends Application {
         splitPane.setOrientation(Orientation.HORIZONTAL);
         splitPane.getItems().addAll(leftScroll, rightScroll);
         splitPane.setDividerPositions(0.35);
+        BorderPane root = new BorderPane();
+        root.setTop(menuBar);
+        root.setCenter(splitPane);
+
+        Scene scene = new Scene(root, 1400, 1000);
 
         // Scene
-        Scene scene = new Scene(splitPane, 1400, 1000);
         scene.getStylesheets().add(getClass().getResource("/dark-theme.css").toExternalForm());
         primaryStage.setScene(scene);
         primaryStage.show();
@@ -412,12 +461,6 @@ public class SimulationFX extends Application {
         return new VBox(5, new Label("Element sequence:"), elementListView);
     }
 
-    private VBox createRunButton() {
-        Button runButton = new Button("Run Simulation");
-        runButton.setOnAction(e -> runSimulation());
-        return new VBox(runButton);
-    }
-
     private VBox createStatusPanel() {
         progressIndicator = new ProgressIndicator();
         progressIndicator.setVisible(false);
@@ -427,6 +470,210 @@ public class SimulationFX extends Application {
         return new VBox(statusBox);
     }
 
+    private VBox createRunButton() {
+        Button runButton = new Button("Run Simulation");
+        runButton.setOnAction(e -> runSimulation());
+        return new VBox(runButton);
+    }
+
+    private void loadPreset(String name) {
+        SimulationConfig config = null;
+        switch (name) {
+            case "Free space propagation":
+                config = PresetConfigs.freeSpace();
+                break;
+            case "Lens focusing":
+                config = PresetConfigs.lensFocusing();
+                break;
+            case "Diffraction on slit":
+                config = PresetConfigs.slitDiffraction();
+                break;
+            case "Grating diffraction":
+                config = PresetConfigs.gratingDiffraction();
+                break;
+            case "Lens + grating":
+                config = PresetConfigs.lensAndGrating();
+                break;
+            default:
+                return;
+        }
+        if (config == null) return;
+        applyConfig(config);
+        statusLabel.setText("Loaded preset: " + name);
+    }
+
+    private void applyConfig(SimulationConfig config) {
+        lambdaField.setText(String.valueOf(config.lambda));
+        dxField.setText(String.valueOf(config.dx));
+        nField.setText(String.valueOf(config.n));
+        beamWidthField.setText(String.valueOf(config.beamWidth));
+        sourceTypeCombo.setValue(config.sourceType);
+        antiAliasingCheck.setSelected(config.antiAliasing);
+        colormapCombo.setValue(config.colormap);
+        logScaleCheck.setSelected(config.logScale);
+
+        elementManager.clear();
+        editingIndex = -1;
+        addButton.setText("Add");
+
+        for (SimulationConfig.ElementConfig ec : config.elements) {
+            OpticalElement elem = null;
+            switch (ec.type) {
+                case "Free space":
+                    if (ec.distance != null) elem = ElementFactory.createFreeSpace(ec.distance);
+                    break;
+                case "Lens":
+                    if (ec.focalLength != null) elem = ElementFactory.createLens(ec.focalLength);
+                    break;
+                case "Mirror":
+                    if (ec.flat != null && ec.flat) {
+                        elem = ElementFactory.createMirror(true);
+                    } else if (ec.focalLength != null) {
+                        elem = ElementFactory.createMirror(false, ec.focalLength);
+                    }
+                    break;
+                case "Grating":
+                    if (ec.period != null && ec.amplitude != null) {
+                        boolean rect = ec.rectangular != null && ec.rectangular;
+                        elem = ElementFactory.createGrating(ec.period, ec.amplitude, rect);
+                    }
+                    break;
+                case "Slit":
+                    if (ec.width != null) elem = ElementFactory.createSlit(ec.width);
+                    break;
+            }
+            if (elem != null) elementManager.add(elem);
+        }
+
+        updateScheme();
+        lastField = null;
+        intensityImageView.setImage(null);
+        phaseImageView.setImage(null);
+    }
+
+    private void saveConfiguration() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Configuration");
+        fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("JSON Files", "*.json")
+        );
+        fileChooser.setInitialFileName("config.json");
+        File file = fileChooser.showSaveDialog(primaryStage);
+        if (file == null) return;
+
+        try {
+            SimulationConfig config = new SimulationConfig();
+            config.lambda = Double.parseDouble(lambdaField.getText());
+            config.dx = Double.parseDouble(dxField.getText());
+            config.n = Integer.parseInt(nField.getText());
+            config.beamWidth = Double.parseDouble(beamWidthField.getText());
+            config.sourceType = sourceTypeCombo.getValue();
+            config.antiAliasing = antiAliasingCheck.isSelected();
+            config.colormap = colormapCombo.getValue();
+            config.logScale = logScaleCheck.isSelected();
+
+            List<SimulationConfig.ElementConfig> elemConfigs = new ArrayList<>();
+            for (OpticalElement elem : elementManager.getElements()) {
+                SimulationConfig.ElementConfig ec = new SimulationConfig.ElementConfig();
+                if (elem instanceof FreeSpaceElement) {
+                    ec.type = "Free space";
+                    ec.distance = ((FreeSpaceElement) elem).getLength();
+                } else if (elem instanceof LensElement) {
+                    ec.type = "Lens";
+                    ec.focalLength = ((LensElement) elem).getFocalLength();
+                } else if (elem instanceof MirrorElement) {
+                    ec.type = "Mirror";
+                    MirrorElement m = (MirrorElement) elem;
+                    ec.flat = m.isFlat();
+                    if (!m.isFlat()) ec.focalLength = m.getFocalLength();
+                } else if (elem instanceof GratingElement) {
+                    ec.type = "Grating";
+                    GratingElement g = (GratingElement) elem;
+                    ec.period = g.getPeriod();
+                    ec.amplitude = g.getAmplitude();
+                    ec.rectangular = g.isRectangular();
+                } else if (elem instanceof SlitElement) {
+                    ec.type = "Slit";
+                    ec.width = ((SlitElement) elem).getWidth();
+                } else {
+                    continue;
+                }
+                elemConfigs.add(ec);
+            }
+            config.elements = elemConfigs;
+
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(file, config);
+            statusLabel.setText("Configuration saved to " + file.getName());
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            showError("Failed to save: " + ex.getMessage());
+        }
+    }
+
+    private void loadConfiguration() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Load Configuration");
+        fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("JSON Files", "*.json")
+        );
+        File file = fileChooser.showOpenDialog(primaryStage);
+        if (file == null) return;
+
+        try {
+            SimulationConfig config = objectMapper.readValue(file, SimulationConfig.class);
+
+            lambdaField.setText(String.valueOf(config.lambda));
+            dxField.setText(String.valueOf(config.dx));
+            nField.setText(String.valueOf(config.n));
+            beamWidthField.setText(String.valueOf(config.beamWidth));
+            sourceTypeCombo.setValue(config.sourceType);
+            antiAliasingCheck.setSelected(config.antiAliasing);
+            colormapCombo.setValue(config.colormap);
+            logScaleCheck.setSelected(config.logScale);
+
+            elementManager.clear();
+            editingIndex = -1;
+            addButton.setText("Add");
+
+            for (SimulationConfig.ElementConfig ec : config.elements) {
+                OpticalElement elem = null;
+                switch (ec.type) {
+                    case "Free space":
+                        if (ec.distance != null) elem = ElementFactory.createFreeSpace(ec.distance);
+                        break;
+                    case "Lens":
+                        if (ec.focalLength != null) elem = ElementFactory.createLens(ec.focalLength);
+                        break;
+                    case "Mirror":
+                        if (ec.flat != null && ec.flat) {
+                            elem = ElementFactory.createMirror(true);
+                        } else if (ec.focalLength != null) {
+                            elem = ElementFactory.createMirror(false, ec.focalLength);
+                        }
+                        break;
+                    case "Grating":
+                        if (ec.period != null && ec.amplitude != null) {
+                            boolean rect = ec.rectangular != null && ec.rectangular;
+                            elem = ElementFactory.createGrating(ec.period, ec.amplitude, rect);
+                        }
+                        break;
+                    case "Slit":
+                        if (ec.width != null) elem = ElementFactory.createSlit(ec.width);
+                        break;
+                }
+                if (elem != null) elementManager.add(elem);
+            }
+
+            updateScheme();
+            lastField = null;
+            intensityImageView.setImage(null);
+            phaseImageView.setImage(null);
+            statusLabel.setText("Configuration loaded from " + file.getName());
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            showError("Failed to load: " + ex.getMessage());
+        }
+    }
 
     // Element Management
     private VBox createCharts() {
