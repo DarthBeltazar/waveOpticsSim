@@ -79,6 +79,10 @@ public class SimulationFX extends Application {
     private TextField numRealizationsField;
     private CheckBox rgbModeCheck;
     private TextField redWavelengthField, greenWavelengthField, blueWavelengthField;
+    private double[][] lastRed;
+    private double[][] lastGreen;
+    private double[][] lastBlue;
+    private boolean lastRgbMode = false;
 
     public static void main(String[] args) {
         launch(args);
@@ -318,12 +322,16 @@ public class SimulationFX extends Application {
 
         // Listener for colormap change
         colormapCombo.valueProperty().addListener((obs, old, newVal) -> {
-            if (lastField != null) updateImages(lastField);
+            if (!lastRgbMode && lastField != null) updateImages(lastField);
         });
 
         // Listener for log scale toggle
         logScaleCheck.selectedProperty().addListener((obs, old, newVal) -> {
-            if (lastField != null) updateImages(lastField);
+            if (lastRgbMode && lastRed != null) {
+                updateRgbImages(lastRed, lastGreen, lastBlue, newVal);
+            } else if (lastField != null) {
+                updateImages(lastField);
+            }
         });
 
         // Listener for zoom slider
@@ -399,6 +407,10 @@ public class SimulationFX extends Application {
      * @param field the field to visualize
      */
     private void updateImages(ComplexField field) {
+        if (lastRgbMode && lastRed != null && lastGreen != null && lastBlue != null) {
+            updateRgbImages(lastRed, lastGreen, lastBlue, logScaleCheck.isSelected());
+            return;
+        }
         if (field == null) return;
         lastField = field;
 
@@ -957,19 +969,65 @@ public class SimulationFX extends Application {
         Task<Void> task = new Task<>() {
             @Override
             protected Void call() throws Exception {
-                double lambda = Double.parseDouble(lambdaField.getText());
-                double dx = Double.parseDouble(dxField.getText());
-                int N = Integer.parseInt(nField.getText());
-                double beamWidth = Double.parseDouble(beamWidthField.getText());
-                boolean pointSource = "Point source".equals(sourceTypeCombo.getValue());
-                boolean partiallyCoherent = partiallyCoherentCheck.isSelected();
+                final double dx = Double.parseDouble(dxField.getText());
+                final int N = Integer.parseInt(nField.getText());
+                final double beamWidth = Double.parseDouble(beamWidthField.getText());
+                final boolean pointSource = "Point source".equals(sourceTypeCombo.getValue());
+                final boolean partiallyCoherent = partiallyCoherentCheck.isSelected();
+                final boolean rgbMode = rgbModeCheck.isSelected();
+
+                if (rgbMode && partiallyCoherent) {
+                    Platform.runLater(() -> {
+                        Alert alert = new Alert(Alert.AlertType.WARNING,
+                                "RGB mode and partially coherent source cannot be used together.\n" +
+                                        "RGB mode will be used, partially coherent ignored.");
+                        alert.showAndWait();
+                    });
+                }
 
                 AngularSpectrumPropagator.setAntiAliasingEnabled(antiAliasingCheck.isSelected());
 
-                List<ComplexField> initialFields;
+                if (rgbMode) {
+                    final double redLambda = Double.parseDouble(redWavelengthField.getText());
+                    final double greenLambda = Double.parseDouble(greenWavelengthField.getText());
+                    final double blueLambda = Double.parseDouble(blueWavelengthField.getText());
+                    final double[] lambdas = {redLambda, greenLambda, blueLambda};
+
+                    final List<double[][]> intensities = new ArrayList<>();
+                    for (double lambda : lambdas) {
+                        ComplexField field = createCoherentField(N, dx, lambda, beamWidth, pointSource);
+                        engine.run(field, elementManager.getElements());
+                        intensities.add(field.computeIntensity());
+                    }
+
+                    final double[][] redInt = intensities.get(0);
+                    final double[][] greenInt = intensities.get(1);
+                    final double[][] blueInt = intensities.get(2);
+
+                    Platform.runLater(() -> {
+                        lastRed = redInt;
+                        lastGreen = greenInt;
+                        lastBlue = blueInt;
+                        lastRgbMode = true;
+                        lastField = null;
+                        updateRgbImages(redInt, greenInt, blueInt, logScaleCheck.isSelected());
+                        double[][] greenProf = new double[N][N];
+                        for (int i = 0; i < N; i++) {
+                            System.arraycopy(greenInt[i], 0, greenProf[i], 0, N);
+                        }
+                        updateCharts(greenProf, new double[N][N]);
+                        progressIndicator.setVisible(false);
+                        statusLabel.setText("RGB simulation done.");
+                    });
+                    return null;
+                }
+
+                final double lambda = Double.parseDouble(lambdaField.getText());
+
+                final List<ComplexField> initialFields;
                 if (partiallyCoherent) {
-                    double coherenceLength = Double.parseDouble(coherenceLengthField.getText());
-                    int numRealizations = Integer.parseInt(numRealizationsField.getText());
+                    final double coherenceLength = Double.parseDouble(coherenceLengthField.getText());
+                    final int numRealizations = Integer.parseInt(numRealizationsField.getText());
                     PartiallyCoherentSource source = new PartiallyCoherentSource(N, dx, lambda, beamWidth, coherenceLength, numRealizations);
                     initialFields = source.generateFields();
                     updateMessage("Generated " + numRealizations + " realizations");
@@ -978,7 +1036,7 @@ public class SimulationFX extends Application {
                     initialFields = List.of(field);
                 }
 
-                List<ComplexField> propagatedFields = new ArrayList<>(initialFields.size());
+                final List<ComplexField> propagatedFields = new ArrayList<>(initialFields.size());
                 if (partiallyCoherent) {
                     IntStream.range(0, initialFields.size()).parallel().forEach(i -> {
                         ComplexField f = initialFields.get(i);
@@ -995,19 +1053,12 @@ public class SimulationFX extends Application {
 
                 Platform.runLater(() -> {
                     if (partiallyCoherent) {
-                        double[][] avgIntensity = averageIntensity(propagatedFields);
-                        double[][] phase = propagatedFields.get(0).computePhase();
-
-                        try {
-                            ImageUtils.saveImage(avgIntensity, "final_intensity_avg.png");
-                            ImageUtils.saveImage(phase, "final_phase_first.png");
-                        } catch (IOException ex) {
-                            ex.printStackTrace();
-                        }
+                        final double[][] avgIntensity = averageIntensity(propagatedFields);
+                        final double[][] phase = propagatedFields.get(0).computePhase();
                         updateCharts(avgIntensity, phase);
                         updateImages(avgIntensity, phase);
                     } else {
-                        ComplexField field = propagatedFields.get(0);
+                        final ComplexField field = propagatedFields.get(0);
                         try {
                             ImageUtils.saveImage(field.computeIntensity(), "final_intensity.png");
                             ImageUtils.saveImage(field.computePhase(), "final_phase.png");
@@ -1155,6 +1206,15 @@ public class SimulationFX extends Application {
         double pMax = findMax(phase);
         ImageUtils.drawColorbar(intensityColorbarCanvas, cmap, iMin, iMax, "Intensity");
         ImageUtils.drawColorbar(phaseColorbarCanvas, cmap, pMin, pMax, "Phase");
+    }
+
+    /**
+     * Updates the intensity ImageView with a color image from RGB components.
+     */
+    private void updateRgbImages(double[][] red, double[][] green, double[][] blue, boolean logScale) {
+        javafx.scene.image.Image img = ImageUtils.createColorImage(red, green, blue, logScale);
+        intensityImageView.setImage(img);
+        phaseImageView.setImage(null);
     }
 
     /**

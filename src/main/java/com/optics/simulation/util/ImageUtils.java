@@ -244,4 +244,78 @@ public final class ImageUtils {
             gc.restore();
         }
     }
+
+    /**
+     * Creates a color JavaFX Image from three intensity components (R, G, B).
+     * @param red   red intensity (normalized or raw)
+     * @param green green intensity
+     * @param blue  blue intensity
+     * @param logScale if true, apply log1p to each component
+     * @return JavaFX Image
+     */
+    public static javafx.scene.image.Image createColorImage(double[][] red, double[][] green, double[][] blue, boolean logScale) {
+        int n = red.length;
+        int m = red[0].length;
+        WritableImage image = new WritableImage(m, n);
+        PixelWriter writer = image.getPixelWriter();
+
+        // Нормализуем каждую компоненту отдельно (можно и вместе, но отдельно даёт лучший контраст)
+        double[][] r = preprocess(red, logScale);
+        double[][] g = preprocess(green, logScale);
+        double[][] b = preprocess(blue, logScale);
+
+        double minR = findMin(r), maxR = findMax(r);
+        double minG = findMin(g), maxG = findMax(g);
+        double minB = findMin(b), maxB = findMax(b);
+        double rangeR = maxR - minR;
+        double rangeG = maxG - minG;
+        double rangeB = maxB - minB;
+        if (rangeR < 1e-12) rangeR = 1.0;
+        if (rangeG < 1e-12) rangeG = 1.0;
+        if (rangeB < 1e-12) rangeB = 1.0;
+
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < m; j++) {
+                double vr = (r[i][j] - minR) / rangeR;
+                double vg = (g[i][j] - minG) / rangeG;
+                double vb = (b[i][j] - minB) / rangeB;
+                Color color = Color.color(vr, vg, vb);
+                writer.setColor(j, i, color);
+            }
+        }
+        return image;
+    }
+
+    /**
+     * Saves a color image to PNG.
+     */
+    public static void saveColorImage(double[][] red, double[][] green, double[][] blue, boolean logScale, String filename) throws IOException {
+        int n = red.length;
+        int m = red[0].length;
+        BufferedImage image = new BufferedImage(m, n, BufferedImage.TYPE_INT_RGB);
+
+        double[][] r = preprocess(red, logScale);
+        double[][] g = preprocess(green, logScale);
+        double[][] b = preprocess(blue, logScale);
+
+        double minR = findMin(r), maxR = findMax(r);
+        double minG = findMin(g), maxG = findMax(g);
+        double minB = findMin(b), maxB = findMax(b);
+        double rangeR = maxR - minR;
+        double rangeG = maxG - minG;
+        double rangeB = maxB - minB;
+        if (rangeR < 1e-12) rangeR = 1.0;
+        if (rangeG < 1e-12) rangeG = 1.0;
+        if (rangeB < 1e-12) rangeB = 1.0;
+
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < m; j++) {
+                int ir = (int)(255 * Math.min(1, Math.max(0, (r[i][j] - minR) / rangeR)));
+                int ig = (int)(255 * Math.min(1, Math.max(0, (g[i][j] - minG) / rangeG)));
+                int ib = (int)(255 * Math.min(1, Math.max(0, (b[i][j] - minB) / rangeB)));
+                image.setRGB(j, i, (ir << 16) | (ig << 8) | ib);
+            }
+        }
+        ImageIO.write(image, "png", new File(filename));
+    }
 }

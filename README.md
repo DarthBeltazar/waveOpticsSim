@@ -52,7 +52,7 @@ All elements are modelled as **phase masks** (or amplitude masks) applied to the
     - Flat: phase reversal (`multiply by -1`).
     - Curved: acts as a lens with negative focal length.
 - **Grating**:
-    - Sinusoidal: `exp(i * amp * (sin(2πx/p) + sin(2πy/p)))`
+    - Sinusoidal: `exp(i * amp * (sin(2πx/p)))`
     - Rectangular: step‑wise phase modulation.
 - **Slit**: amplitude mask `1` inside `|x| ≤ w/2`, `0` outside.
 - **Free space**: propagation via ASM.

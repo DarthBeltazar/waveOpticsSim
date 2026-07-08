@@ -26,17 +26,14 @@ public class GratingElement implements OpticalElement {
             double half = n / 2.0;
             cachedMask = new double[n][2 * n];
             for (int i = 0; i < n; i++) {
-                double x = (i - half) * dx;
                 for (int j = 0; j < n; j++) {
                     double y = (j - half) * dx;
                     double phase;
                     if (rectangular) {
                         phase = 0.0;
-                        if (Math.sin(2.0 * Math.PI * x / period) >= 0) phase += amplitude;
                         if (Math.sin(2.0 * Math.PI * y / period) >= 0) phase += amplitude;
                     } else {
-                        phase = amplitude * (Math.sin(2.0 * Math.PI * x / period)
-                                + Math.sin(2.0 * Math.PI * y / period));
+                        phase = amplitude * (Math.sin(2.0 * Math.PI * y / period));
                     }
                     int idx = 2 * j;
                     cachedMask[i][idx] = Math.cos(phase);
