@@ -4,6 +4,7 @@ import com.optics.simulation.AngularSpectrumPropagator;
 import com.optics.simulation.ComplexField;
 import com.optics.simulation.analysis.BeamAnalyzer;
 import com.optics.simulation.config.SimulationConfig;
+import com.optics.simulation.source.PartiallyCoherentSource;
 import com.optics.simulation.util.Colormap;
 import com.optics.simulation.util.ImageUtils;
 import com.optics.simulation.engine.SimulationEngine;
@@ -73,8 +74,11 @@ public class SimulationFX extends Application {
     private ComplexField lastField = null;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
     private Stage primaryStage;
-    private ComboBox<String> presetCombo;
-    private Button resetButton;
+    private CheckBox partiallyCoherentCheck;
+    private TextField coherenceLengthField;
+    private TextField numRealizationsField;
+    private CheckBox rgbModeCheck;
+    private TextField redWavelengthField, greenWavelengthField, blueWavelengthField;
 
     public static void main(String[] args) {
         launch(args);
@@ -445,6 +449,47 @@ public class SimulationFX extends Application {
         antiAliasingCheck = new CheckBox("Enable anti-aliasing (zero-padding)");
         antiAliasingCheck.setSelected(false);
 
+        partiallyCoherentCheck = new CheckBox("Partially coherent");
+        partiallyCoherentCheck.setSelected(false);
+        partiallyCoherentCheck.setTooltip(new Tooltip("Enable partial coherence (Schell model)"));
+
+        coherenceLengthField = new TextField("0.001");
+        coherenceLengthField.setTooltip(new Tooltip("Coherence length (m) – Gaussian correlation length"));
+        coherenceLengthField.setDisable(true);
+
+        numRealizationsField = new TextField("20");
+        numRealizationsField.setTooltip(new Tooltip("Number of realizations for averaging"));
+        numRealizationsField.setDisable(true);
+
+        partiallyCoherentCheck.selectedProperty().addListener((obs, old, val) -> {
+            coherenceLengthField.setDisable(!val);
+            numRealizationsField.setDisable(!val);
+        });
+        rgbModeCheck = new CheckBox("RGB mode (color diffraction)");
+        rgbModeCheck.setSelected(false);
+        rgbModeCheck.setTooltip(new Tooltip("Run simulation for red, green, blue wavelengths and combine into color image"));
+
+        redWavelengthField = new TextField("0.65e-6");
+        greenWavelengthField = new TextField("0.532e-6");
+        blueWavelengthField = new TextField("0.45e-6");
+        redWavelengthField.setDisable(true);
+        greenWavelengthField.setDisable(true);
+        blueWavelengthField.setDisable(true);
+
+        rgbModeCheck.selectedProperty().addListener((obs, old, val) -> {
+            redWavelengthField.setDisable(!val);
+            greenWavelengthField.setDisable(!val);
+            blueWavelengthField.setDisable(!val);
+        });
+
+        grid.add(rgbModeCheck, 1, 9);
+        grid.add(new Label("Red λ (m):"), 0, 10);
+        grid.add(redWavelengthField, 1, 10);
+        grid.add(new Label("Green λ (m):"), 0, 11);
+        grid.add(greenWavelengthField, 1, 11);
+        grid.add(new Label("Blue λ (m):"), 0, 12);
+        grid.add(blueWavelengthField, 1, 12);
+
         grid.add(new Label("Wavelength (m):"), 0, 0);
         grid.add(lambdaField, 1, 0);
         grid.add(new Label("Sampling (m):"), 0, 1);
@@ -456,6 +501,11 @@ public class SimulationFX extends Application {
         grid.add(new Label("Source type:"), 0, 4);
         grid.add(sourceTypeCombo, 1, 4);
         grid.add(antiAliasingCheck, 1, 5);
+        grid.add(partiallyCoherentCheck, 1, 6);
+        grid.add(new Label("Coherence length (m):"), 0, 7);
+        grid.add(coherenceLengthField, 1, 7);
+        grid.add(new Label("Realizations:"), 0, 8);
+        grid.add(numRealizationsField, 1, 8);
         return grid;
     }
 
@@ -912,47 +962,62 @@ public class SimulationFX extends Application {
                 int N = Integer.parseInt(nField.getText());
                 double beamWidth = Double.parseDouble(beamWidthField.getText());
                 boolean pointSource = "Point source".equals(sourceTypeCombo.getValue());
+                boolean partiallyCoherent = partiallyCoherentCheck.isSelected();
 
                 AngularSpectrumPropagator.setAntiAliasingEnabled(antiAliasingCheck.isSelected());
 
-                double k = 2.0 * Math.PI / lambda;
-                ComplexField field = new ComplexField(N, dx, lambda);
-                double half = N / 2.0;
+                List<ComplexField> initialFields;
+                if (partiallyCoherent) {
+                    double coherenceLength = Double.parseDouble(coherenceLengthField.getText());
+                    int numRealizations = Integer.parseInt(numRealizationsField.getText());
+                    PartiallyCoherentSource source = new PartiallyCoherentSource(N, dx, lambda, beamWidth, coherenceLength, numRealizations);
+                    initialFields = source.generateFields();
+                    updateMessage("Generated " + numRealizations + " realizations");
+                } else {
+                    ComplexField field = createCoherentField(N, dx, lambda, beamWidth, pointSource);
+                    initialFields = List.of(field);
+                }
 
-                updateMessage("Creating initial field...");
-                IntStream.range(0, N).parallel().forEach(i -> {
-                    double x = (i - half) * dx;
-                    for (int j = 0; j < N; j++) {
-                        double y = (j - half) * dx;
-                        if (pointSource) {
-                            double w0 = 1e-6;
-                            double r2 = x*x + y*y;
-                            double amp = Math.exp(-r2/(w0*w0));
-                            double r = Math.sqrt(r2);
-                            field.setValue(i, j, amp * Math.cos(k*r), amp * Math.sin(k*r));
-                        } else {
-                            double r2 = x*x + y*y;
-                            field.setValue(i, j, Math.exp(-r2/(beamWidth*beamWidth)), 0.0);
+                List<ComplexField> propagatedFields = new ArrayList<>(initialFields.size());
+                if (partiallyCoherent) {
+                    IntStream.range(0, initialFields.size()).parallel().forEach(i -> {
+                        ComplexField f = initialFields.get(i);
+                        engine.run(f, elementManager.getElements());
+                        synchronized (propagatedFields) {
+                            propagatedFields.add(f);
                         }
-                    }
-                });
-
-                updateMessage("Propagating through elements...");
-                engine.run(field, elementManager.getElements());
-
-                //updateMessage("Saving images...");
-                //ImageUtils.saveImage(field.computeIntensity(), "final_intensity.png");
-                //ImageUtils.saveImage(field.computePhase(), "final_phase.png");
+                    });
+                } else {
+                    ComplexField field = initialFields.get(0);
+                    engine.run(field, elementManager.getElements());
+                    propagatedFields.add(field);
+                }
 
                 Platform.runLater(() -> {
-                    updateCharts(field);
+                    if (partiallyCoherent) {
+                        double[][] avgIntensity = averageIntensity(propagatedFields);
+                        double[][] phase = propagatedFields.get(0).computePhase();
+
+                        try {
+                            ImageUtils.saveImage(avgIntensity, "final_intensity_avg.png");
+                            ImageUtils.saveImage(phase, "final_phase_first.png");
+                        } catch (IOException ex) {
+                            ex.printStackTrace();
+                        }
+                        updateCharts(avgIntensity, phase);
+                        updateImages(avgIntensity, phase);
+                    } else {
+                        ComplexField field = propagatedFields.get(0);
+                        try {
+                            ImageUtils.saveImage(field.computeIntensity(), "final_intensity.png");
+                            ImageUtils.saveImage(field.computePhase(), "final_phase.png");
+                        } catch (IOException ex) {
+                            ex.printStackTrace();
+                        }
+                        updateCharts(field);
+                        updateImages(field);
+                    }
                     updateScheme();
-                    Colormap cmap = Colormap.fromDisplayName(colormapCombo.getValue());
-                    if (cmap == null) cmap = Colormap.GRAYSCALE;
-                    intensityImageView.setImage(ImageUtils.createColoredImage(field.computeIntensity(), cmap, true));
-                    phaseImageView.setImage(ImageUtils.createColoredImage(field.computePhase(), cmap, false));
-                    lastField = field;
-                    updateImages(field);
                     progressIndicator.setVisible(false);
                     statusLabel.setText("Done.");
                 });
@@ -998,6 +1063,98 @@ public class SimulationFX extends Application {
         intensityChart.getYAxis().setAutoRanging(true);
         phaseChart.getXAxis().setAutoRanging(true);
         phaseChart.getYAxis().setAutoRanging(true);
+    }
+
+    private ComplexField createCoherentField(int N, double dx, double lambda, double beamWidth, boolean pointSource) {
+        ComplexField field = new ComplexField(N, dx, lambda);
+        double half = N / 2.0;
+        double k = 2.0 * Math.PI / lambda;
+        double[][] data = field.getData();
+        for (int i = 0; i < N; i++) {
+            double x = (i - half) * dx;
+            for (int j = 0; j < N; j++) {
+                double y = (j - half) * dx;
+                int idx = 2 * j;
+                if (pointSource) {
+                    double w0 = 1e-6;
+                    double r2 = x*x + y*y;
+                    double amp = Math.exp(-r2/(w0*w0));
+                    double r = Math.sqrt(r2);
+                    data[i][idx] = amp * Math.cos(k*r);
+                    data[i][idx+1] = amp * Math.sin(k*r);
+                } else {
+                    double r2 = x*x + y*y;
+                    data[i][idx] = Math.exp(-r2/(beamWidth*beamWidth));
+                    data[i][idx+1] = 0.0;
+                }
+            }
+        }
+        return field;
+    }
+
+    private double[][] averageIntensity(List<ComplexField> fields) {
+        int n = fields.get(0).getN();
+        double[][] avg = new double[n][n];
+        for (ComplexField f : fields) {
+            double[][] I = f.computeIntensity();
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    avg[i][j] += I[i][j];
+                }
+            }
+        }
+        double inv = 1.0 / fields.size();
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                avg[i][j] *= inv;
+            }
+        }
+        return avg;
+    }
+
+    private void updateCharts(double[][] intensity, double[][] phase) {
+        int n = intensity.length;
+        double dx = Double.parseDouble(dxField.getText());
+        double half = n / 2.0;
+        int centerRow = n / 2;
+
+        XYChart.Series<Number, Number> intSeries = new XYChart.Series<>();
+        intSeries.setName("Intensity (log)");
+        XYChart.Series<Number, Number> phaseSeries = new XYChart.Series<>();
+        phaseSeries.setName("Phase");
+
+        for (int j = 0; j < n; j++) {
+            double x = (j - half) * dx;
+            double I = intensity[centerRow][j];
+            intSeries.getData().add(new XYChart.Data<>(x, Math.log1p(I)));
+            phaseSeries.getData().add(new XYChart.Data<>(x, phase[centerRow][j]));
+        }
+
+        intensityChart.getData().clear();
+        intensityChart.getData().add(intSeries);
+        phaseChart.getData().clear();
+        phaseChart.getData().add(phaseSeries);
+        intensityChart.getXAxis().setAutoRanging(true);
+        intensityChart.getYAxis().setAutoRanging(true);
+        phaseChart.getXAxis().setAutoRanging(true);
+        phaseChart.getYAxis().setAutoRanging(true);
+    }
+
+    private void updateImages(double[][] intensity, double[][] phase) {
+        lastField = null;
+        Colormap cmap = Colormap.fromDisplayName(colormapCombo.getValue());
+        if (cmap == null) cmap = Colormap.GRAYSCALE;
+        boolean log = logScaleCheck.isSelected();
+
+        intensityImageView.setImage(ImageUtils.createColoredImage(intensity, cmap, log));
+        phaseImageView.setImage(ImageUtils.createColoredImage(phase, cmap, false));
+
+        double iMin = findMin(intensity);
+        double iMax = findMax(intensity);
+        double pMin = findMin(phase);
+        double pMax = findMax(phase);
+        ImageUtils.drawColorbar(intensityColorbarCanvas, cmap, iMin, iMax, "Intensity");
+        ImageUtils.drawColorbar(phaseColorbarCanvas, cmap, pMin, pMax, "Phase");
     }
 
     /**
