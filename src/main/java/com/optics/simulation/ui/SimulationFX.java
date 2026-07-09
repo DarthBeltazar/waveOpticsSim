@@ -20,7 +20,7 @@ import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
-import javafx.scene.Scene;
+import javafx.scene.*;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
@@ -31,6 +31,9 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.Dragboard;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.transform.Rotate;
+import javafx.scene.transform.Translate;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
@@ -83,11 +86,11 @@ public class SimulationFX extends Application {
     private double[][] lastGreen;
     private double[][] lastBlue;
     private boolean lastRgbMode = false;
+    private double lastMouseX, lastMouseY;
 
     public static void main(String[] args) {
         launch(args);
     }
-
 
     // UI Creation Methods
     @Override
@@ -201,11 +204,15 @@ public class SimulationFX extends Application {
         saveIntensityBtn.setTooltip(new Tooltip("Save current intensity image as PNG"));
         savePhaseBtn.setTooltip(new Tooltip("Save current phase image as PNG"));
 
+        Button view3DBtn = new Button("3D View");
+        view3DBtn.setTooltip(new Tooltip("Open 3D surface view of intensity"));
+        view3DBtn.setOnAction(e -> show3DView());
+
         controls.getChildren().addAll(
                 new Label("Colormap:"), colormapCombo,
                 logScaleCheck,
                 new Label("Zoom:"), zoomSlider,
-                saveIntensityBtn, savePhaseBtn
+                saveIntensityBtn, savePhaseBtn, view3DBtn
         );
         imagesBox.getChildren().add(controls);
 
@@ -395,6 +402,132 @@ public class SimulationFX extends Application {
 
         stage.setScene(scene);
         stage.setResizable(false);
+        stage.show();
+    }
+
+    private void show3DView() {
+        if (lastField == null && !lastRgbMode) {
+            showWarning("No data to visualize. Run simulation first.");
+            return;
+        }
+
+        double[][] data;
+        if (lastRgbMode && lastRed != null) {
+            int n = lastRed.length;
+            data = new double[n][n];
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    data[i][j] = lastRed[i][j] + lastGreen[i][j] + lastBlue[i][j];
+                }
+            }
+        } else if (lastField != null) {
+            data = lastField.computeIntensity();
+        } else {
+            return;
+        }
+
+        int n = data.length;
+        int subsample = 1;
+        while (n / subsample > 200 && subsample < 8) subsample++;
+        double dx = Double.parseDouble(dxField.getText());
+
+        Stage stage = new Stage();
+        stage.setTitle("3D Surface View");
+        stage.initOwner(primaryStage);
+
+        Group root = new Group();
+        Group surfaceGroup = Surface3D.createSurface(data, dx, subsample, false);
+        if (surfaceGroup.getChildren().isEmpty()) {
+            showWarning("Failed to create 3D surface.");
+            return;
+        }
+        root.getChildren().add(surfaceGroup);
+
+        PointLight light1 = new PointLight(Color.WHITE);
+        light1.setTranslateX(200);
+        light1.setTranslateY(200);
+        light1.setTranslateZ(200);
+        PointLight light2 = new PointLight(Color.WHITE);
+        light2.setTranslateX(-200);
+        light2.setTranslateY(-200);
+        light2.setTranslateZ(200);
+        AmbientLight ambient = new AmbientLight(Color.rgb(80, 80, 80));
+        root.getChildren().addAll(light1, light2, ambient);
+
+        PerspectiveCamera camera = new PerspectiveCamera(true);
+        camera.setTranslateZ(-350);
+        camera.setTranslateX(0);
+        camera.setTranslateY(0);
+        camera.setFieldOfView(45);
+        camera.setNearClip(1);
+        camera.setFarClip(2000);
+
+        Scene scene = new Scene(root, 800, 600, true);
+        scene.setFill(Color.rgb(50, 50, 50));
+        scene.setCamera(camera);
+
+        Rotate rotateX = new Rotate(0, Rotate.X_AXIS);
+        Rotate rotateY = new Rotate(0, Rotate.Y_AXIS);
+        Translate translate = new Translate(0, 0, 0);
+
+        surfaceGroup.getTransforms().addAll(rotateX, rotateY, translate);
+
+        rotateX.setAngle(30);
+        rotateY.setAngle(-45);
+
+        class MouseState {
+            double mouseX, mouseY;
+            boolean isDragging = false;
+        }
+        MouseState mouse = new MouseState();
+
+        scene.setOnMousePressed(e -> {
+            mouse.mouseX = e.getSceneX();
+            mouse.mouseY = e.getSceneY();
+            mouse.isDragging = true;
+        });
+
+        scene.setOnMouseDragged(e -> {
+            double deltaX = e.getSceneX() - mouse.mouseX;
+            double deltaY = e.getSceneY() - mouse.mouseY;
+            mouse.mouseX = e.getSceneX();
+            mouse.mouseY = e.getSceneY();
+
+            if (e.isControlDown()) {
+                translate.setX(translate.getX() + deltaX * 0.3);
+                translate.setY(translate.getY() - deltaY * 0.3);
+            } else {
+                rotateY.setAngle(rotateY.getAngle() + deltaX * 0.3);
+                rotateX.setAngle(rotateX.getAngle() - deltaY * 0.3);
+            }
+        });
+
+        scene.setOnMouseReleased(e -> {
+            mouse.isDragging = false;
+        });
+
+        scene.setOnScroll(e -> {
+            double delta = e.getDeltaY();
+            double zoomFactor = 1.0 + delta / 1000.0;
+            double newZ = camera.getTranslateZ() * zoomFactor;
+            if (newZ > -50) newZ = -50;
+            if (newZ < -1500) newZ = -1500;
+            camera.setTranslateZ(newZ);
+        });
+
+        scene.setOnMouseClicked(e -> {
+            if (e.getClickCount() == 2) {
+                rotateX.setAngle(30);
+                rotateY.setAngle(-45);
+                translate.setX(0);
+                translate.setY(0);
+                camera.setTranslateZ(-350);
+            }
+        });
+
+        System.out.println("3D Controls: Drag to rotate, Ctrl+Drag to pan, Scroll to zoom, Double-click to reset view.");
+
+        stage.setScene(scene);
         stage.show();
     }
 
@@ -1063,12 +1196,12 @@ public class SimulationFX extends Application {
                         updateImages(avgIntensity, phase);
                     } else {
                         final ComplexField field = propagatedFields.get(0);
-                        try {
-                            ImageUtils.saveImage(field.computeIntensity(), "final_intensity.png");
-                            ImageUtils.saveImage(field.computePhase(), "final_phase.png");
-                        } catch (IOException ex) {
-                            ex.printStackTrace();
-                        }
+//                        try {
+//                            ImageUtils.saveImage(field.computeIntensity(), "final_intensity.png");
+//                            ImageUtils.saveImage(field.computePhase(), "final_phase.png");
+//                        } catch (IOException ex) {
+//                            ex.printStackTrace();
+//                        }
                         updateCharts(field);
                         updateImages(field);
                     }
@@ -1225,7 +1358,6 @@ public class SimulationFX extends Application {
      * Custom ListCell that supports drag-and-drop reordering.
      */
     private static class DragDropListCell extends ListCell<OpticalElement> {
-
         {
             setOnDragDetected(event -> {
                 if (getItem() == null) return;
@@ -1279,6 +1411,17 @@ public class SimulationFX extends Application {
                 setStyle("");
                 event.consume();
             });
+        }
+
+        @Override
+        protected void updateItem(OpticalElement item, boolean empty) {
+            super.updateItem(item, empty);
+            if (empty || item == null) {
+                setText(null);
+                setGraphic(null);
+            } else {
+                setText(item.getDescription());
+            }
         }
     }
 }
