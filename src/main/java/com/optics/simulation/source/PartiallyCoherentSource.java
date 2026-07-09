@@ -48,7 +48,7 @@ public class PartiallyCoherentSource {
             double x = (i - half) * dx;
             for (int j = 0; j < N; j++) {
                 double y = (j - half) * dx;
-                amplitude[i][j] = Math.exp(-(x*x + y*y) / (beamWidth * beamWidth));
+                amplitude[i][j] = Math.exp(-(x * x + y * y) / (beamWidth * beamWidth));
             }
         }
 
@@ -121,8 +121,8 @@ public class PartiallyCoherentSource {
         double[] fx = new double[n];
         double[] fy = new double[n];
         for (int i = 0; i < n; i++) {
-            fx[i] = (i < n/2) ? (double) i / (n * dx) : (double) (i - n) / (n * dx);
-            fy[i] = (i < n/2) ? (double) i / (n * dx) : (double) (i - n) / (n * dx);
+            fx[i] = (i < n / 2) ? (double) i / (n * dx) : (double) (i - n) / (n * dx);
+            fy[i] = (i < n / 2) ? (double) i / (n * dx) : (double) (i - n) / (n * dx);
         }
 
         // Filter = sqrt( F[μ] ) = exp(-2π² Lc² f²)
@@ -130,7 +130,7 @@ public class PartiallyCoherentSource {
             double fxi = fx[i];
             for (int j = 0; j < n; j++) {
                 double fyj = fy[j];
-                double f2 = fxi*fxi + fyj*fyj;
+                double f2 = fxi * fxi + fyj * fyj;
                 double val = Math.exp(-2.0 * Math.PI * Math.PI * coherenceLength * coherenceLength * f2);
                 int idx = 2 * j;
                 filter[i][idx] = val;

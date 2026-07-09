@@ -230,7 +230,7 @@ public final class ImageUtils {
             double t = (double) i / steps;
             Color color = colormap.apply(t);
             gc.setFill(color);
-            gc.fillRect(0, h - (i+1) * h / steps, w, h / steps);
+            gc.fillRect(0, h - (i + 1) * h / steps, w, h / steps);
         }
         gc.setFill(Color.WHITE);
         gc.setFont(javafx.scene.text.Font.font(10));
@@ -238,7 +238,7 @@ public final class ImageUtils {
         gc.fillText(String.format("%.2e", min), 2, h - 4);
         if (label != null) {
             gc.save();
-            gc.translate(8, h/2);
+            gc.translate(8, h / 2);
             gc.rotate(-90);
             gc.fillText(label, 0, 0);
             gc.restore();
@@ -247,9 +247,10 @@ public final class ImageUtils {
 
     /**
      * Creates a color JavaFX Image from three intensity components (R, G, B).
-     * @param red   red intensity (normalized or raw)
-     * @param green green intensity
-     * @param blue  blue intensity
+     *
+     * @param red      red intensity (normalized or raw)
+     * @param green    green intensity
+     * @param blue     blue intensity
      * @param logScale if true, apply log1p to each component
      * @return JavaFX Image
      */
@@ -310,9 +311,9 @@ public final class ImageUtils {
 
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < m; j++) {
-                int ir = (int)(255 * Math.min(1, Math.max(0, (r[i][j] - minR) / rangeR)));
-                int ig = (int)(255 * Math.min(1, Math.max(0, (g[i][j] - minG) / rangeG)));
-                int ib = (int)(255 * Math.min(1, Math.max(0, (b[i][j] - minB) / rangeB)));
+                int ir = (int) (255 * Math.min(1, Math.max(0, (r[i][j] - minR) / rangeR)));
+                int ig = (int) (255 * Math.min(1, Math.max(0, (g[i][j] - minG) / rangeG)));
+                int ib = (int) (255 * Math.min(1, Math.max(0, (b[i][j] - minB) / rangeB)));
                 image.setRGB(j, i, (ir << 16) | (ig << 8) | ib);
             }
         }

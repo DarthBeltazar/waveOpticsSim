@@ -4,7 +4,8 @@ import com.optics.simulation.engine.SimulationEngine;
 import com.optics.simulation.factory.ElementFactory;
 import com.optics.simulation.manager.ElementManager;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class IntegrationTest {
 
@@ -39,12 +40,12 @@ public class IntegrationTest {
         double half = N / 2.0;
 
         // Проверяем центральный максимум
-        double maxIntensity = intensity[centerRow][(int)half];
+        double maxIntensity = intensity[centerRow][(int) half];
         assertTrue(maxIntensity > 0);
 
         // Находим первый минимум справа
-        int firstMinPos = (int)half;
-        for (int j = (int)half + 1; j < N; j++) {
+        int firstMinPos = (int) half;
+        for (int j = (int) half + 1; j < N; j++) {
             if (intensity[centerRow][j] < maxIntensity * 0.1) {
                 firstMinPos = j;
                 break;

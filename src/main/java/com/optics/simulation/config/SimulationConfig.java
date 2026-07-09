@@ -1,6 +1,7 @@
 package com.optics.simulation.config;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -25,6 +26,7 @@ public class SimulationConfig {
         public Boolean rectangular;
         public Double width;
 
-        public ElementConfig() {}
+        public ElementConfig() {
+        }
     }
 }

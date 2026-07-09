@@ -28,6 +28,7 @@
     -fx-border-radius: 4;
     -fx-background-radius: 4;
 }
+
 .text-field:focused {
     -fx-border-color: #6a9ef0;
 }
@@ -40,9 +41,11 @@
     -fx-background-radius: 4;
     -fx-padding: 6 12;
 }
+
 .button:hover {
     -fx-background-color: #5a5a5a;
 }
+
 .button:armed {
     -fx-background-color: #3a3a3a;
 }
@@ -50,10 +53,12 @@
 .check-box {
     -fx-text-fill: #e0e0e0;
 }
+
 .check-box .box {
     -fx-background-color: #3c3c3c;
     -fx-border-color: #555;
 }
+
 .check-box:selected .box {
     -fx-background-color: #6a9ef0;
 }
@@ -62,17 +67,21 @@
     -fx-background-color: #3c3c3c;
     -fx-text-fill: #e0e0e0;
 }
+
 .combo-box .list-cell {
     -fx-background-color: #3c3c3c;
     -fx-text-fill: #e0e0e0;
 }
+
 .combo-box .list-view {
     -fx-background-color: #3c3c3c;
 }
+
 .combo-box .list-view .list-cell {
     -fx-background-color: #3c3c3c;
     -fx-text-fill: #e0e0e0;
 }
+
 .combo-box .list-view .list-cell:hover {
     -fx-background-color: #5a5a5a;
 }
@@ -82,13 +91,16 @@
     -fx-control-inner-background: #3c3c3c;
     -fx-text-fill: #e0e0e0;
 }
+
 .list-view .list-cell {
     -fx-background-color: #3c3c3c;
     -fx-text-fill: #e0e0e0;
 }
+
 .list-view .list-cell:hover {
     -fx-background-color: #5a5a5a;
 }
+
 .list-view .list-cell:selected {
     -fx-background-color: #6a9ef0;
     -fx-text-fill: #ffffff;
@@ -98,6 +110,7 @@
     -fx-background-color: #2e2e2e;
     -fx-background: #2e2e2e;
 }
+
 .scroll-pane .viewport {
     -fx-background-color: #2e2e2e;
 }
@@ -106,6 +119,7 @@
     -fx-background-color: #2e2e2e;
     -fx-border-color: #444;
 }
+
 .split-pane .split-pane-divider {
     -fx-background-color: #444;
 }
@@ -117,24 +131,31 @@
 .chart {
     -fx-background-color: #2e2e2e;
 }
+
 .chart-title {
     -fx-text-fill: #e0e0e0;
 }
+
 .axis-label {
     -fx-text-fill: #e0e0e0;
 }
+
 .chart-plot-background {
     -fx-background-color: #2e2e2e;
 }
+
 .axis {
     -fx-tick-label-fill: #e0e0e0;
 }
+
 .axis .line {
     -fx-stroke: #555;
 }
+
 .chart-series-line {
     -fx-stroke-width: 2px;
 }
+
 .chart-symbol {
     -fx-background-color: #6a9ef0;
 }
@@ -155,37 +176,47 @@
     -fx-border-color: #444;
     -fx-border-width: 1 0 0 0;
 }
+
 .images-panel .vbox,
 .images-panel .hbox {
     -fx-background-color: #2e2e2e;
 }
+
 .images-panel .label {
     -fx-text-fill: #e0e0e0;
 }
+
 .image-view {
     -fx-background-color: #1e1e1e;
 }
+
 .chart-vertical-grid-lines {
     -fx-stroke: #888888;
     -fx-stroke-dash-array: 4, 4;
 }
+
 .chart-horizontal-grid-lines {
     -fx-stroke: #888888;
     -fx-stroke-dash-array: 4, 4;
 }
+
 .axis {
     -fx-tick-label-fill: #e0e0e0;
 }
+
 .axis .line {
     -fx-stroke: #aaaaaa;
     -fx-stroke-width: 1.5;
 }
+
 .axis .tick-mark {
     -fx-stroke: #aaaaaa;
 }
+
 .chart-plot-background {
     -fx-background-color: #2e2e2e;
 }
+
 .chart-title {
     -fx-text-fill: #e0e0e0;
 }
@@ -194,6 +225,7 @@
     -fx-stroke: #ffaa00;
     -fx-stroke-width: 2px;
 }
+
 .chart-symbol {
     -fx-background-color: #ffaa00;
 }

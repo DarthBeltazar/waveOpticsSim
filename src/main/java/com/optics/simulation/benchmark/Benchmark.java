@@ -95,21 +95,21 @@ public class Benchmark {
         System.out.println("\nBreakdown by stages:");
         System.out.printf("  %-25s %12s %12s %8s%n", "Stage", "Time (s)", "±", "Percent");
         System.out.println("  " + "-".repeat(65));
-        System.out.printf("  %-25s %12.4f %12.4f %7.1f%%%n", "Field creation", avgStage[0], stdStage[0], avgStage[0]/avgTotal*100);
+        System.out.printf("  %-25s %12.4f %12.4f %7.1f%%%n", "Field creation", avgStage[0], stdStage[0], avgStage[0] / avgTotal * 100);
         for (int i = 0; i < elements.size(); i++) {
             String name = elements.get(i).getDescription();
             if (name.length() > 25) name = name.substring(0, 22) + "...";
-            System.out.printf("  %-25s %12.4f %12.4f %7.1f%%%n", name, avgStage[i+1], stdStage[i+1], avgStage[i+1]/avgTotal*100);
+            System.out.printf("  %-25s %12.4f %12.4f %7.1f%%%n", name, avgStage[i + 1], stdStage[i + 1], avgStage[i + 1] / avgTotal * 100);
         }
 
         // Save to CSV
         try (PrintWriter pw = new PrintWriter(new FileWriter("benchmarkResults/benchmark_results.csv"))) {
             pw.println("Stage,Average (s),StdDev (s),Percent,ms,ms,ms");
             pw.printf("Total,%.4f,%.4f,100.0%n", avgTotal, stdTotal);
-            pw.printf("Field creation,%.4f,%.4f,%.1f%n", avgStage[0], stdStage[0], avgStage[0]/avgTotal*100);
+            pw.printf("Field creation,%.4f,%.4f,%.1f%n", avgStage[0], stdStage[0], avgStage[0] / avgTotal * 100);
             for (int i = 0; i < elements.size(); i++) {
                 String name = elements.get(i).getDescription().replaceAll(",", ";");
-                pw.printf("%s,%.4f,%.4f,%.1f%n", name, avgStage[i+1], stdStage[i+1], avgStage[i+1]/avgTotal*100);
+                pw.printf("%s,%.4f,%.4f,%.1f%n", name, avgStage[i + 1], stdStage[i + 1], avgStage[i + 1] / avgTotal * 100);
             }
         }
         System.out.println("\nResults saved to benchmark_results.csv");
@@ -151,15 +151,15 @@ public class Benchmark {
                 int idx = 2 * j;
                 if (pointSource) {
                     double w0 = 1e-6;
-                    double r2 = x*x + y*y;
-                    double amp = Math.exp(-r2/(w0*w0));
+                    double r2 = x * x + y * y;
+                    double amp = Math.exp(-r2 / (w0 * w0));
                     double r = Math.sqrt(r2);
-                    data[i][idx] = amp * Math.cos(k*r);
-                    data[i][idx+1] = amp * Math.sin(k*r);
+                    data[i][idx] = amp * Math.cos(k * r);
+                    data[i][idx + 1] = amp * Math.sin(k * r);
                 } else {
-                    double r2 = x*x + y*y;
-                    data[i][idx] = Math.exp(-r2/(beamWidth*beamWidth));
-                    data[i][idx+1] = 0.0;
+                    double r2 = x * x + y * y;
+                    data[i][idx] = Math.exp(-r2 / (beamWidth * beamWidth));
+                    data[i][idx + 1] = 0.0;
                 }
             }
         }

@@ -3,16 +3,16 @@ package com.optics.simulation.ui;
 import com.optics.simulation.AngularSpectrumPropagator;
 import com.optics.simulation.ComplexField;
 import com.optics.simulation.analysis.BeamAnalyzer;
+import com.optics.simulation.config.PresetConfigs;
 import com.optics.simulation.config.SimulationConfig;
-import com.optics.simulation.source.PartiallyCoherentSource;
-import com.optics.simulation.util.Colormap;
-import com.optics.simulation.util.ImageUtils;
 import com.optics.simulation.engine.SimulationEngine;
 import com.optics.simulation.factory.ElementFactory;
 import com.optics.simulation.manager.ElementManager;
 import com.optics.simulation.model.*;
 import com.optics.simulation.renderer.SchemeRenderer;
-import com.optics.simulation.config.PresetConfigs;
+import com.optics.simulation.source.PartiallyCoherentSource;
+import com.optics.simulation.util.Colormap;
+import com.optics.simulation.util.ImageUtils;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.collections.ObservableList;
@@ -48,6 +48,7 @@ public class SimulationFX extends Application {
 
     private final ElementManager elementManager = new ElementManager();
     private final SimulationEngine engine = new SimulationEngine();
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
     // UI components
     private TextField lambdaField, dxField, nField, beamWidthField;
     private ComboBox<String> sourceTypeCombo;
@@ -72,7 +73,6 @@ public class SimulationFX extends Application {
     private Slider zoomSlider;
     private Button saveIntensityBtn, savePhaseBtn;
     private ComplexField lastField = null;
-    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
     private Stage primaryStage;
     private CheckBox partiallyCoherentCheck;
     private TextField coherenceLengthField;
@@ -346,6 +346,7 @@ public class SimulationFX extends Application {
         elementManager.getElements().addListener((javafx.collections.ListChangeListener<? super OpticalElement>) change -> updateScheme());
         sourceTypeCombo.valueProperty().addListener((obs, old, newVal) -> updateScheme());
     }
+
     private void showBeamAnalysis() {
         if (lastField == null) {
             showWarning("No field data. Run simulation first.");
@@ -404,6 +405,7 @@ public class SimulationFX extends Application {
 
     /**
      * Updates the 2D images (intensity and phase) with the current colormap and log scale settings.
+     *
      * @param field the field to visualize
      */
     private void updateImages(ComplexField field) {
@@ -434,13 +436,17 @@ public class SimulationFX extends Application {
         ImageUtils.drawColorbar(phaseColorbarCanvas, cmap, pMin, pMax, "Phase");
     }
 
-    /** Show a warning dialog. */
+    /**
+     * Show a warning dialog.
+     */
     private void showWarning(String msg) {
         Alert alert = new Alert(Alert.AlertType.WARNING, msg);
         alert.showAndWait();
     }
 
-    /** Show an error dialog. */
+    /**
+     * Show an error dialog.
+     */
     private void showError(String msg) {
         Alert alert = new Alert(Alert.AlertType.ERROR, msg);
         alert.showAndWait();
@@ -700,18 +706,16 @@ public class SimulationFX extends Application {
                 SimulationConfig.ElementConfig ec = new SimulationConfig.ElementConfig();
                 if (elem instanceof FreeSpaceElement) {
                     ec.type = "Free space";
-                    ec.distance = ((FreeSpaceElement) elem).getLength();
+                    ec.distance = elem.getLength();
                 } else if (elem instanceof LensElement) {
                     ec.type = "Lens";
                     ec.focalLength = ((LensElement) elem).getFocalLength();
-                } else if (elem instanceof MirrorElement) {
+                } else if (elem instanceof MirrorElement m) {
                     ec.type = "Mirror";
-                    MirrorElement m = (MirrorElement) elem;
                     ec.flat = m.isFlat();
                     if (!m.isFlat()) ec.focalLength = m.getFocalLength();
-                } else if (elem instanceof GratingElement) {
+                } else if (elem instanceof GratingElement g) {
                     ec.type = "Grating";
-                    GratingElement g = (GratingElement) elem;
                     ec.period = g.getPeriod();
                     ec.amplitude = g.getAmplitude();
                     ec.rectangular = g.isRectangular();
@@ -1128,15 +1132,15 @@ public class SimulationFX extends Application {
                 int idx = 2 * j;
                 if (pointSource) {
                     double w0 = 1e-6;
-                    double r2 = x*x + y*y;
-                    double amp = Math.exp(-r2/(w0*w0));
+                    double r2 = x * x + y * y;
+                    double amp = Math.exp(-r2 / (w0 * w0));
                     double r = Math.sqrt(r2);
-                    data[i][idx] = amp * Math.cos(k*r);
-                    data[i][idx+1] = amp * Math.sin(k*r);
+                    data[i][idx] = amp * Math.cos(k * r);
+                    data[i][idx + 1] = amp * Math.sin(k * r);
                 } else {
-                    double r2 = x*x + y*y;
-                    data[i][idx] = Math.exp(-r2/(beamWidth*beamWidth));
-                    data[i][idx+1] = 0.0;
+                    double r2 = x * x + y * y;
+                    data[i][idx] = Math.exp(-r2 / (beamWidth * beamWidth));
+                    data[i][idx + 1] = 0.0;
                 }
             }
         }
@@ -1221,17 +1225,6 @@ public class SimulationFX extends Application {
      * Custom ListCell that supports drag-and-drop reordering.
      */
     private static class DragDropListCell extends ListCell<OpticalElement> {
-
-        @Override
-        protected void updateItem(OpticalElement item, boolean empty) {
-            super.updateItem(item, empty);
-            if (empty || item == null) {
-                setText(null);
-                setGraphic(null);
-            } else {
-                setText(item.getDescription());
-            }
-        }
 
         {
             setOnDragDetected(event -> {

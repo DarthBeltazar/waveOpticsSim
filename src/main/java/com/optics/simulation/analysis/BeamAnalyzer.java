@@ -77,16 +77,45 @@ public class BeamAnalyzer {
         fwhmY = 2.355 * sigmaY;
     }
 
-    public double getCenterX() { return centerX; }
-    public double getCenterY() { return centerY; }
-    public double getSigmaX() { return sigmaX; }
-    public double getSigmaY() { return sigmaY; }
-    public double getRadiusX() { return 2 * sigmaX; }
-    public double getRadiusY() { return 2 * sigmaY; }
-    public double getFwhmX() { return fwhmX; }
-    public double getFwhmY() { return fwhmY; }
-    public double getPeakIntensity() { return peakIntensity; }
-    public double getTotalIntensity() { return totalIntensity; }
+    public double getCenterX() {
+        return centerX;
+    }
+
+    public double getCenterY() {
+        return centerY;
+    }
+
+    public double getSigmaX() {
+        return sigmaX;
+    }
+
+    public double getSigmaY() {
+        return sigmaY;
+    }
+
+    public double getRadiusX() {
+        return 2 * sigmaX;
+    }
+
+    public double getRadiusY() {
+        return 2 * sigmaY;
+    }
+
+    public double getFwhmX() {
+        return fwhmX;
+    }
+
+    public double getFwhmY() {
+        return fwhmY;
+    }
+
+    public double getPeakIntensity() {
+        return peakIntensity;
+    }
+
+    public double getTotalIntensity() {
+        return totalIntensity;
+    }
 
     @Override
     public String toString() {

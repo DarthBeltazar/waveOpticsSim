@@ -8,7 +8,7 @@ import java.util.List;
 
 public class SimulationEngine {
     private boolean debugMode = false;
-    private List<ComplexField> snapshots = new ArrayList<>();
+    private final List<ComplexField> snapshots = new ArrayList<>();
 
     public void setDebugMode(boolean debug) {
         this.debugMode = debug;

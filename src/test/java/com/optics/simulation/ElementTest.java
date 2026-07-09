@@ -1,9 +1,13 @@
 package com.optics.simulation;
 
-import com.optics.simulation.model.*;
+import com.optics.simulation.model.GratingElement;
+import com.optics.simulation.model.LensElement;
+import com.optics.simulation.model.MirrorElement;
+import com.optics.simulation.model.SlitElement;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class ElementTest {
 
