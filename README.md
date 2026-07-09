@@ -19,6 +19,7 @@
 - **Save/Load configurations** in JSON format.
 - **Built‑in presets** (free space, lens focusing, slit diffraction, grating diffraction, lens+grating).
 - **Beam analysis**: centre of gravity, beam radius (1/e²), FWHM, peak intensity.
+- **3D surface view** ![Screenshot](docs/images/3dSurface.png)
 - **Performance optimisations**:
     - JTransforms for fast FFT.
     - Caching of phase masks and transfer functions.
