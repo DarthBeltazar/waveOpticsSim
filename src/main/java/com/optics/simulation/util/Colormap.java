@@ -34,7 +34,7 @@ public enum Colormap {
         return BY_NAME.get(name);
     }
 
-    private static Color viridis(double t) {
+    private static uColor viridis(double t) {
         // Simplified viridis (using predefined RGB points)
         double r, g, b;
         if (t < 0.0) {
@@ -62,10 +62,10 @@ public enum Colormap {
             g = 0.755 + s * (0.151);
             b = 0.450 + s * (-0.075);
         }
-        return Color.color(r, g, b);
+        return new uColor(r, g, b);
     }
 
-    private static Color jet(double t) {
+    private static uColor jet(double t) {
         double r, g, b;
         if (t < 0.125) {
             r = 0.0;
@@ -88,23 +88,23 @@ public enum Colormap {
             g = 0.0;
             b = 0.0;
         }
-        return Color.color(clamp(r), clamp(g), clamp(b));
+        return new uColor(clamp(r), clamp(g), clamp(b));
     }
 
     // ---------- Colormap implementations ----------
 
-    private static Color hot(double t) {
+    private static uColor hot(double t) {
         double r = Math.min(1.0, 4.0 * t);
         double g = Math.min(1.0, 4.0 * t - 1.0);
         double b = Math.min(1.0, 4.0 * t - 2.0);
-        return Color.color(clamp(r), clamp(g), clamp(b));
+        return new uColor(clamp(r), clamp(g), clamp(b));
     }
 
-    private static Color cool(double t) {
-        return Color.color(t, 1.0 - t, 1.0);
+    private static uColor cool(double t) {
+        return new uColor(t, 1.0 - t, 1.0);
     }
 
-    private static Color plasma(double t) {
+    private static uColor plasma(double t) {
         // Approximate plasma
         double r = 0.0, g = 0.0, b = 0.0;
         if (t < 0.25) {
@@ -124,7 +124,7 @@ public enum Colormap {
             g = 1.0;
             b = 0.5 - 4 * (t - 0.75);
         }
-        return Color.color(clamp(r), clamp(g), clamp(b));
+        return new uColor(clamp(r), clamp(g), clamp(b));
     }
 
     private static double clamp(double v) {
@@ -138,12 +138,12 @@ public enum Colormap {
     /**
      * Maps a value in [0,1] to a Color.
      */
-    public Color apply(double t) {
+    private uColor uApply(double t) {
         // Clamp
         t = Math.min(1.0, Math.max(0.0, t));
         switch (this) {
             case GRAYSCALE:
-                return Color.gray(t);
+                return new uColor(t, t, t);
             case VIRIDIS:
                 return viridis(t);
             case JET:
@@ -155,7 +155,35 @@ public enum Colormap {
             case PLASMA:
                 return plasma(t);
             default:
-                return Color.gray(t);
+                return new uColor(t, t, t);
+        }
+    }
+
+    public Color apply(double t) {
+        return uApply(t).toFx();
+    }
+    public java.awt.Color applyAWT(double t) {
+        return uApply(t).toAwt();
+    }
+
+    private static class uColor {
+        float r, g, b;
+        public uColor(float r, float g, float b) {
+            this.r = r;
+            this.g = g;
+            this.b = b;
+        }
+        public uColor(double r, double g, double b) {
+            this.r = (float) r;
+            this.g = (float) g;
+            this.b = (float) b;
+        }
+        public java.awt.Color toAwt() {
+            return new java.awt.Color(r, g, b);
+        }
+
+        public Color toFx() {
+            return Color.color(r, g, b);
         }
     }
 }

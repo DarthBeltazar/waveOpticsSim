@@ -290,31 +290,23 @@ public final class ImageUtils {
     /**
      * Saves a color image to PNG.
      */
-    public static void saveColorImage(double[][] red, double[][] green, double[][] blue, boolean logScale, String filename) throws IOException {
-        int n = red.length;
-        int m = red[0].length;
+    public static void saveColorImage(double[][] data, Colormap colormap, boolean logScale, String filename) throws IOException {
+        int n = data.length;
+        int m = data[0].length;
         BufferedImage image = new BufferedImage(m, n, BufferedImage.TYPE_INT_RGB);
 
-        double[][] r = preprocess(red, logScale);
-        double[][] g = preprocess(green, logScale);
-        double[][] b = preprocess(blue, logScale);
-
-        double minR = findMin(r), maxR = findMax(r);
-        double minG = findMin(g), maxG = findMax(g);
-        double minB = findMin(b), maxB = findMax(b);
-        double rangeR = maxR - minR;
-        double rangeG = maxG - minG;
-        double rangeB = maxB - minB;
-        if (rangeR < 1e-12) rangeR = 1.0;
-        if (rangeG < 1e-12) rangeG = 1.0;
-        if (rangeB < 1e-12) rangeB = 1.0;
+        double[][] processed = preprocess(data, logScale);
+        double min = findMin(processed);
+        double max = findMax(processed);
+        double range = max - min;
+        if (range < 1e-12) range = 1.0;
 
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < m; j++) {
-                int ir = (int) (255 * Math.min(1, Math.max(0, (r[i][j] - minR) / rangeR)));
-                int ig = (int) (255 * Math.min(1, Math.max(0, (g[i][j] - minG) / rangeG)));
-                int ib = (int) (255 * Math.min(1, Math.max(0, (b[i][j] - minB) / rangeB)));
-                image.setRGB(j, i, (ir << 16) | (ig << 8) | ib);
+                double val = (processed[i][j] - min) / range;
+                java.awt.Color color = colormap.applyAWT(val);
+                int rgb = color.getRGB();
+                image.setRGB(j, i, rgb);
             }
         }
         ImageIO.write(image, "png", new File(filename));

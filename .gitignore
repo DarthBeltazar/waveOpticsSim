@@ -6,6 +6,7 @@ build/
 .kotlin
 final_**.png
 benchmarkResults/*
+output
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
