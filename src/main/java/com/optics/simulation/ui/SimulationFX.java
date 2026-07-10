@@ -6,6 +6,7 @@ import com.optics.simulation.analysis.BeamAnalyzer;
 import com.optics.simulation.config.PresetConfigs;
 import com.optics.simulation.config.SimulationConfig;
 import com.optics.simulation.engine.SimulationEngine;
+import com.optics.simulation.export.PdfExporter;
 import com.optics.simulation.factory.ElementFactory;
 import com.optics.simulation.manager.ElementManager;
 import com.optics.simulation.model.*;
@@ -137,6 +138,9 @@ public class SimulationFX extends Application {
         MenuItem analyzeItem = new MenuItem("Beam Analysis");
         analyzeItem.setOnAction(e -> showBeamAnalysis());
         toolsMenu.getItems().add(analyzeItem);
+        MenuItem exportPdfItem = new MenuItem("Export PDF");
+        exportPdfItem.setOnAction(e -> exportPdf());
+        toolsMenu.getItems().add(exportPdfItem);
         menuBar.getMenus().addAll(configMenu, toolsMenu);
 
         // Left panel (settings, scrollable)
@@ -352,6 +356,58 @@ public class SimulationFX extends Application {
         updateScheme();
         elementManager.getElements().addListener((javafx.collections.ListChangeListener<? super OpticalElement>) change -> updateScheme());
         sourceTypeCombo.valueProperty().addListener((obs, old, newVal) -> updateScheme());
+    }
+
+    private void exportPdf() {
+        if (lastField == null && !lastRgbMode) {
+            showWarning("No data to export. Run simulation first.");
+            return;
+        }
+
+        ComplexField field = lastField;
+        if (lastRgbMode && lastRed != null) {
+            showWarning("PDF export is not supported for RGB mode yet.");
+            return;
+        }
+
+        if (field == null) {
+            showWarning("No field data to export.");
+            return;
+        }
+
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Export PDF Report");
+        fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("PDF File", "*.pdf")
+        );
+        fileChooser.setInitialFileName("report.pdf");
+        File file = fileChooser.showSaveDialog(primaryStage);
+        if (file == null) return;
+
+        try {
+            double lambda = Double.parseDouble(lambdaField.getText());
+            double dx = Double.parseDouble(dxField.getText());
+            int N = Integer.parseInt(nField.getText());
+            double beamWidth = Double.parseDouble(beamWidthField.getText());
+            String sourceType = sourceTypeCombo.getValue();
+            boolean antiAlias = antiAliasingCheck.isSelected();
+            Colormap cmap = Colormap.fromDisplayName(colormapCombo.getValue());
+            if (cmap == null) cmap = Colormap.GRAYSCALE;
+            boolean log = logScaleCheck.isSelected();
+
+            PdfExporter.export(file.getAbsolutePath(),
+                    field,
+                    elementManager,
+                    lambda, dx, N, beamWidth,
+                    sourceType,
+                    antiAlias,
+                    cmap,
+                    log);
+            statusLabel.setText("PDF report saved to " + file.getName());
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            showError("Failed to export PDF: " + ex.getMessage());
+        }
     }
 
     private void showBeamAnalysis() {

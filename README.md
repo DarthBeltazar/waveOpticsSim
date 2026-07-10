@@ -17,6 +17,7 @@
     - Zoom, pan, and colorbar for 2D images.
 - **Interactive editing**: add, remove, edit elements; drag‑and‑drop reordering; double‑click to delete.
 - **Save/Load configurations** in JSON format.
+- **PDF results export**: simulation params, images, beam analysis and data
 - **Built‑in presets** (free space, lens focusing, slit diffraction, grating diffraction, lens+grating).
 - **Beam analysis**: centre of gravity, beam radius (1/e²), FWHM, peak intensity.
 - **3D surface view** ![Screenshot](docs/images/3dSurface.png)

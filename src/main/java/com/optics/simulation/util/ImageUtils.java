@@ -311,4 +311,25 @@ public final class ImageUtils {
         }
         ImageIO.write(image, "png", new File(filename));
     }
+
+    public static BufferedImage createBufferedImage(double[][] data, Colormap colormap, boolean logScale) {
+        int n = data.length;
+        int m = data[0].length;
+        BufferedImage image = new BufferedImage(m, n, BufferedImage.TYPE_INT_RGB);
+
+        double[][] processed = preprocess(data, logScale);
+        double min = findMin(processed);
+        double max = findMax(processed);
+        double range = max - min;
+        if (range < 1e-12) range = 1.0;
+
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < m; j++) {
+                double val = (processed[i][j] - min) / range;
+                java.awt.Color color = colormap.applyAWT(val);
+                image.setRGB(j, i, color.getRGB());
+            }
+        }
+        return image;
+    }
 }
