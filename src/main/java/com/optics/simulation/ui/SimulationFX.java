@@ -581,8 +581,6 @@ public class SimulationFX extends Application {
             }
         });
 
-        System.out.println("3D Controls: Drag to rotate, Ctrl+Drag to pan, Scroll to zoom, Double-click to reset view.");
-
         stage.setScene(scene);
         stage.show();
     }

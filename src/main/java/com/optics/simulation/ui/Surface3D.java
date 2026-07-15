@@ -102,7 +102,6 @@ public class Surface3D {
 
         meshView.setDepthTest(DepthTest.ENABLE);
 
-        System.out.println("MeshView created: " + meshView.getBoundsInLocal());
 
         return new Group(meshView);
     }
