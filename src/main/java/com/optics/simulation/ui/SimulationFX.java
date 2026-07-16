@@ -1,3 +1,6 @@
+/**
+ * This class is the main entry point for the optical simulation application.
+ */
 package com.optics.simulation.ui;
 
 import com.optics.simulation.AngularSpectrumPropagator;
@@ -48,6 +51,9 @@ import java.util.stream.IntStream;
 import static com.optics.simulation.util.ImageUtils.findMax;
 import static com.optics.simulation.util.ImageUtils.findMin;
 
+/**
+ * Represents the JavaFX-based UI for the optical simulation application.
+ */
 public class SimulationFX extends Application {
 
     private final ElementManager elementManager = new ElementManager();

@@ -1,3 +1,6 @@
+/**
+ * This class provides functionality to create a 3D surface representation.
+ */
 package com.optics.simulation.ui;
 
 import javafx.scene.DepthTest;
@@ -10,14 +13,29 @@ import javafx.scene.shape.MeshView;
 import javafx.scene.shape.TriangleMesh;
 
 public class Surface3D {
-    public static Group createSurface(double[][] data, double dx, int subsample, boolean showPhase) {
+/**
+ * Creates a 3D surface group from the given data array.
+ *
+ * @param data the 2D array of elevation data points
+ * @param dx   the spacing between data points
+ * @param subsample the sampling rate (lower values increase detail)
+ * @param showPhase whether to display phase information on the surface
+ * @return a Group containing the 3D surface representation
+ */
+public static Group createSurface(double[][] data, double dx, int subsample, boolean showPhase) {
         int rows = data.length;
         int cols = data[0].length;
         int step = Math.max(1, subsample);
         int r = rows / step;
         int c = cols / step;
 
-        if (r < 2 || c < 2) {
+/**
+ * Checks if there are enough data points to create a surface.
+ *
+ * @param r number of rows in the data array
+ * @param c number of columns in the data array
+ */
+if (r < 2 || c < 2) {
             System.err.println("Not enough data points. r=" + r + ", c=" + c);
             return new Group();
         }
@@ -91,7 +109,7 @@ public class Surface3D {
         mesh.getFaces().setAll(faces);
 
         PhongMaterial material = new PhongMaterial();
-        material.setDiffuseColor(Color.rgb(0, 200, 255)); // яркий голубой
+        material.setDiffuseColor(Color.rgb(0, 200, 255));
         material.setSpecularColor(Color.WHITE);
         material.setSpecularPower(32.0);
 
